@@ -10,16 +10,21 @@ def lancar_conta_pagar(request):
     if request.method == 'POST':
         form = ContaPagarForm(request.POST, empresa=empresa)
         if form.is_valid():
-            print("[VIEW] Formulário VÁLIDO")  # ✅ PRINT 3
             conta = form.save(commit=False)
             conta.empresa = empresa
             conta.criado_por = request.user
             conta.save()
             return redirect('lancar_conta_pagar')
     else:
-        form = ContaPagarForm(empresa=empresa)
+        # Obtem a filial padrão da sessão (se houver)
+        filial_padrao_id = request.session.get('filial_padrao')
+        initial_data = {}
+        if filial_padrao_id:
+            initial_data['filial'] = filial_padrao_id
 
-    # Pega os dados e printa a quantidade
+        form = ContaPagarForm(empresa=empresa, initial=initial_data)
+
+    # Dados adicionais para renderização
     filiais = Filial.objects.filter(empresa=empresa)
     transacoes = Transacao.objects.filter(empresa=empresa)
     fornecedores = Fornecedor.objects.filter(empresa=empresa)

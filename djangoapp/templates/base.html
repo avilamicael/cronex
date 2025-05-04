@@ -63,7 +63,8 @@
                     data-parent="#accordionSidebar">
                     <div class="bg-white py-2 collapse-inner rounded">
                         <h6 class="collapse-header">Contas:</h6>
-                        <a class="collapse-item" href="{% url 'lancar_conta_pagar' %}">Contas a Pagar</a>
+                        <a class="collapse-item" href="{% url 'lancar_conta_pagar' %}">Incluir Contas a Pagar</a>
+                        <a class="collapse-item" href="{% url 'dashboard' %}">Contas a Pagar</a>
                     </div>
                 </div>
             </li>
@@ -93,11 +94,10 @@
 
                 <!-- Topbar -->
                 <nav class="navbar navbar-expand navbar-light bg-white topbar mb-4 static-top shadow">
-                    <form
-                        class="d-none d-sm-inline-block form-inline mr-auto ml-md-3 my-2 my-md-0 mw-100 navbar-search">
+                    <!-- Campo de busca à esquerda -->
+                    <form class="d-none d-sm-inline-block form-inline ml-3 my-2 my-md-0 navbar-search">
                         <div class="input-group">
-                            <input type="text" class="form-control bg-light border-0 small" placeholder="Procurar..."
-                                aria-label="Search" aria-describedby="basic-addon2">
+                            <input type="text" class="form-control bg-light border-0 small" placeholder="Procurar..." aria-label="Search" aria-describedby="basic-addon2">
                             <div class="input-group-append">
                                 <button class="btn btn-primary" type="button">
                                     <i class="fas fa-search fa-sm"></i>
@@ -105,11 +105,29 @@
                             </div>
                         </div>
                     </form>
-                    <ul class="navbar-nav ml-auto">
+                
+                    <!-- Itens alinhados à direita -->
+                    <ul class="navbar-nav ml-auto align-items-center">
+                
+                        <!-- Campo de seleção da filial -->
+                        <li class="nav-item">
+                            <form method="post" action="{% url 'definir_filial_padrao' %}" class="form-inline my-2">
+                                {% csrf_token %}
+                                <select name="filial_padrao" class="form-control" onchange="this.form.submit()" style="min-width: 160px;">
+                                    <option value="">Filial padrão</option>
+                                    {% for filial in request.user.empresa.filial_set.all %}
+                                        <option value="{{ filial.id }}" {% if request.session.filial_padrao == filial.id %}selected{% endif %}>
+                                            {{ filial.nome }}
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                            </form>
+                        </li>
+                
+                        <!-- Ícone do usuário -->
                         <li class="nav-item dropdown no-arrow">
                             <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button"
                                 data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                                <!-- <span class="mr-2 d-none d-lg-inline text-gray-600 small">Usuário</span> -->
                                 <img class="img-profile rounded-circle" src="{% static 'img/cronex_favicon.png' %}">
                             </a>
                             <div class="dropdown-menu dropdown-menu-right shadow animated--grow-in"
@@ -127,6 +145,7 @@
                         </li>
                     </ul>
                 </nav>
+                
                 <!-- End Topbar -->
 
                 <!-- Begin Page Content -->
