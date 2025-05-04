@@ -1,0 +1,6 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<h6 class="m-0 font-weight-bold text-primary">Bem-vindo, {{ request.user.first_name|default:request.user.username }}!</h6>
+
+{% endblock %}

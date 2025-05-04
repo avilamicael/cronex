@@ -1,0 +1,259 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Lançamento de Contas a Pagar{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-inner">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">Lançamento de Contas a Pagar</div>
+                </div>
+                <div class="card-body">
+                    <form id="conta-pagar-form" method="post" enctype="multipart/form-data">
+                        {{ formset.management_form }}
+                        {% csrf_token %}
+                        <div class="form-group row">
+                            <!-- Filial -->
+                            <div class="col-md-3">
+                                <label for="filial" class="col-form-label">Filial</label>
+                                <select class="form-control {% if form.filial.errors %}is-invalid{% endif %}" id="filial" name="filial" required>
+                                    <option value="" disabled selected>Selecione a Filial</option>
+                                    {% for filial in filiais %}
+                                        <option value="{{ filial.id }}" {% if form.filial.value == filial.id %}selected{% endif %}>{{ filial.nome }}</option>
+                                    {% endfor %}
+                                </select>
+                                {% if form.filial.errors %}
+                                    <small class="form-text text-muted">{{ form.filial.errors.0 }}</small>
+                                {% endif %}
+                            </div>
+                        
+                            <!-- Transação -->
+                            <div class="col-md-3">
+                                <label for="transacao" class="col-form-label">Transação</label>
+                                <select class="form-control {% if form.transacao.errors %}is-invalid{% endif %}" id="transacao" name="transacao" required>
+                                    <option value="" disabled selected>Selecione a Transação</option>
+                                    {% for transacao in transacoes %}
+                                        <option value="{{ transacao.id }}" {% if form.transacao.value == transacao.id %}selected{% endif %}>{{ transacao.nome }}</option>
+                                    {% endfor %}
+                                </select>
+                                {% if form.transacao.errors %}
+                                    <small class="form-text text-muted">{{ form.transacao.errors.0 }}</small>
+                                {% endif %}
+                            </div>
+                        
+                            <!-- Fornecedor -->
+                            <div class="col-md-3">
+                                <label for="fornecedor" class="col-form-label">Fornecedor</label>
+                                <select class="form-control" id="fornecedor" name="fornecedor" style="width: 100%"></select>
+                            </div>
+                            
+
+                            <!-- Tipo de Pagamento -->
+                            <div class="col-md-3">
+                                <label for="tipo_pagamento" class="col-form-label">Tipo de Pagamento</label>
+                                <select class="form-control {% if form.tipo_pagamento.errors %}is-invalid{% endif %}" id="tipo_pagamento" name="tipo_pagamento" required>
+                                    <option value="" disabled selected>Selecione o Tipo de Pagamento</option>
+                                    {% for tipo in tipos_pagamento %}
+                                        <option value="{{ tipo.id }}" {% if form.tipo_pagamento.value == tipo.id %}selected{% endif %}>{{ tipo.nome }}</option>
+                                    {% endfor %}
+                                </select>
+                                {% if form.tipo_pagamento.errors %}
+                                    <small class="form-text text-muted">{{ form.tipo_pagamento.errors.0 }}</small>
+                                {% endif %}
+                            </div>
+
+                        </div>
+                        
+
+                        <div class="form-group row">
+                            <!-- Documento -->
+                            <div class="col-md-4">
+                                <label for="documento" class="col-form-label">Documento</label>
+                                <input type="text" class="form-control {% if form.documento.errors %}is-invalid{% endif %}"
+                                       id="documento"
+                                       name="documento"
+                                       value="{{ form.documento.value|default_if_none:'' }}" />
+                                {% if form.documento.errors %}
+                                    <small class="form-text text-muted">{{ form.documento.errors.0 }}</small>
+                                {% endif %}
+                            </div>
+                            
+
+                            <!-- Data de Movimentacao -->
+                            <div class="col-md-3">
+                                <label for="data_movimentacao" class="col-form-label">Data de Movimentação</label>
+                                <input type="date" class="form-control {% if form.data_movimentacao.errors %}is-invalid{% endif %}"
+                                       id="data_movimentacao"
+                                       name="data_movimentacao"
+                                       value="{{ form.data_movimentacao.value|default_if_none:'' }}">
+                                {% if form.data_movimentacao.errors %}
+                                    <small class="form-text text-muted">{{ form.data_movimentacao.errors.0 }}</small>
+                                {% endif %}
+                            </div>
+
+                            <!-- Data de Vencimento -->
+                            <div class="col-md-3">
+                                <label for="data_vencimento" class="col-form-label">Data de Vencimento</label>
+                                <input type="date" class="form-control {% if form.data_vencimento.errors %}is-invalid{% endif %}" id="data_vencimento" name="data_vencimento" value="{{ form.data_vencimento.value|default_if_none:'' }}" required />
+                                {% if form.data_vencimento.errors %}
+                                    <small class="form-text text-muted">{{ form.data_vencimento.errors.0 }}</small>
+                                {% endif %}
+                            </div>
+
+                            <!-- Valor -->
+                            <div class="col-md-2">
+                                <label for="valor_bruto" class="col-form-label">Valor Bruto</label>
+                                <input type="text" class="form-control {% if form.valor_bruto.errors %}is-invalid{% endif %}"
+                                       id="valor_bruto"
+                                       name="valor_bruto"
+                                       value="{{ form.valor_bruto.value|default_if_none:'' }}">
+                                {% if form.valor_bruto.errors %}
+                                    <small class="form-text text-muted">{{ form.valor_bruto.errors.0 }}</small>
+                                {% endif %}
+                            </div>                                                      
+                        </div>
+
+                        <div class="form-group row">
+                            <!-- Descricao -->
+                            <div class="col-md-12">
+                                <label for="descricao" class="col-form-label">Descrição</label>
+                                <textarea class="form-control {% if form.descricao.errors %}is-invalid{% endif %}"
+                                          id="descricao"
+                                          name="descricao"
+                                          rows="3">{{ form.descricao.value|default_if_none:'' }}</textarea>
+                                {% if form.descricao.errors %}
+                                    <small class="form-text text-muted">{{ form.descricao.errors.0 }}</small>
+                                {% endif %}
+                            </div>
+                            
+
+                            <!-- Cod. Barras -->
+                            <div class="col-md-6">
+                                <label for="codigo_barras" class="col-form-label">Cod. Barras</label>
+                                <input type="text" class="form-control {% if form.codigo_barras.errors %}is-invalid{% endif %}"
+                                       id="codigo_barras"
+                                       name="codigo_barras"
+                                       value="{{ form.codigo_barras.value|default_if_none:'' }}">
+                                {% if form.codigo_barras.errors %}
+                                    <small class="form-text text-muted">{{ form.codigo_barras.errors.0 }}</small>
+                                {% endif %}
+                            </div>
+
+                            <div class="col-md-6">
+                                <label for="numero_notas" class="col-form-label">Notas Fiscais</label>
+                                <input type="text" class="form-control {% if form.numero_notas.errors %}is-invalid{% endif %}"
+                                       id="numero_notas"
+                                       name="numero_notas"
+                                       placeholder="Ex: 12345, 67890"
+                                       value="{{ form.numero_notas.value|default_if_none:'' }}">
+                                {% if form.numero_notas.errors %}
+                                    <small class="form-text text-muted">{{ form.numero_notas.errors.0 }}</small>
+                                {% else %}
+                                    <small class="form-text text-muted">Separe múltiplas notas com vírgula.</small>
+                                {% endif %}
+                            </div>
+                            
+                            
+                        </div>
+
+                        <div class="card-action">
+                            <button type="submit" class="btn btn-success">Lançar</button>
+                            <button type="reset" class="btn btn-danger">Cancelar</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/autocomplete.js' %}"></script>
+
+<script>
+    $(document).ready(function () {
+        initSelect2Ajax('fornecedor', '{% url "generic_autocomplete" "Fornecedor" %}', 'Selecione o Fornecedor');
+        initSelect2Ajax('tipo_pagamento', '{% url "generic_autocomplete" "TipoPagamento" %}', 'Selecione o Tipo de Pagamento');
+        initSelect2Ajax('transacao', '{% url "generic_autocomplete" "Transacao" %}', 'Selecione a Transação');
+        initSelect2Ajax('filial', '{% url "generic_autocomplete" "Filial" %}', 'Selecione a Filial');
+    });
+</script>
+
+<!--Autocomplete data de movimentacao-->
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const dataMovimentacao = document.getElementById("data_movimentacao");
+        if (dataMovimentacao && !dataMovimentacao.value) {
+            const hoje = new Date().toISOString().split('T')[0];
+            dataMovimentacao.value = hoje;
+        }
+    });
+    </script>
+
+<!-- Mascara valor bruto-->
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const campo = document.getElementById("valor_bruto");
+    
+        function formatarValor(valor) {
+            const numeros = valor.replace(/\D/g, '');
+    
+            if (!numeros) return '0,00';
+    
+            const inteiro = numeros.slice(0, -2) || '0';
+            const decimal = numeros.slice(-2);
+    
+            // Adiciona ponto a cada 3 dígitos da parte inteira
+            const inteiroFormatado = parseInt(inteiro).toLocaleString('pt-BR');
+    
+            return `${inteiroFormatado},${decimal}`;
+        }
+    
+        function prepararParaEnvio(valorFormatado) {
+            return valorFormatado.replace(/\./g, '').replace(',', '.');
+        }
+    
+        if (campo) {
+            campo.addEventListener('focus', function () {
+                campo.value = '';
+            });
+    
+            campo.addEventListener("input", function () {
+                campo.value = formatarValor(campo.value);
+            });
+    
+            campo.form.addEventListener("submit", function () {
+                campo.value = prepararParaEnvio(campo.value);
+            });
+    
+            if (campo.value) {
+                campo.value = formatarValor(campo.value);
+            }
+        }
+    });
+</script>
+<!--Cod. barras e NFs-->
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const campoCodBarras = document.getElementById("codigo_barras");
+        const campoNotasFiscais = document.getElementById("numero_notas");
+
+        if (campoCodBarras) {
+            campoCodBarras.addEventListener("input", function () {
+                this.value = this.value.replace(/[^0-9.]/g, '');
+            });
+        }
+
+        if (campoNotasFiscais) {
+            campoNotasFiscais.addEventListener("input", function () {
+                this.value = this.value.replace(/[^0-9,]/g, '');
+            });
+        }
+    });
+</script>
+
+{% endblock %}
