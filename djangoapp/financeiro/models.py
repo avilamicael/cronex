@@ -62,7 +62,7 @@ class ContaPagar(models.Model):
     STATUS_CHOICES = [
         ('a_vencer', 'À Vencer'),
         ('pago', 'Pago'),
-        ('vencido', 'Vencido'),
+        ('vencida', 'Vencida'),
         ('cancelado', 'Cancelado'),
     ]
 
@@ -113,6 +113,11 @@ class ContaPagar(models.Model):
         )
     def save(self, *args, **kwargs):
         # Chama o método para calcular o saldo antes de salvar
+        if self.documento:
+            self.documento = self.documento.upper()
+        if self.descricao:
+            self.descricao = self.descricao.upper()
+
         self.calcular_saldo()
         super().save(*args, **kwargs)
 

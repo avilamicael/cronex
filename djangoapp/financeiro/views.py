@@ -93,7 +93,7 @@ def listar_contas_pagar(request):
         # se status for "", não aplica filtro (mostra todos)
     else:
         # filtro padrão só se o campo 'status' não estiver no GET (ex: carregamento inicial)
-        contas = contas.filter(status__in=['a_vencer', 'vencido'])
+        contas = contas.filter(status__in=['a_vencer', 'vencida'])
 
 
     # Preparar nomes para manter os selects carregados

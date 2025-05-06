@@ -159,13 +159,15 @@
                         <input type="checkbox" name="ids" value="{{ conta.id }}" class="chk-conta">
                     </td>
                     <td>{{ conta.filial }}</td>
-                    <td>{{ conta.get_status_display }}</td>
+                    <td>
+                        <span class="status-{{ conta.status }}">{{ conta.get_status_display }}</span>
+                    </td>
                     <td>{{ conta.data_vencimento|date:"d/m/Y" }}</td>
-                    <td>{{ conta.fornecedor|default:"—" }}</td>
+                    <td>{{ conta.fornecedor|default:"" }}</td>
                     <td>{{ conta.documento }}</td>
                     <td>{{ conta.valor_bruto|floatformat:2 }}</td>
                     <td title="{{ conta.descricao }}">{{ conta.descricao|truncatechars:25 }}</td>
-                    <td>{{ conta.numero_notas|default:"-" }}</td>
+                    <td>{{ conta.numero_notas|default:"" }}</td>
                     <td>{{ conta.codigo_barras }}</td>
                 </tr>
                 {% empty %}

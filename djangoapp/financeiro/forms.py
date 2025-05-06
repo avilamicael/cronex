@@ -47,7 +47,6 @@ class ContaPagarForm(forms.ModelForm):
         empresa = kwargs.pop('empresa', None)
         super().__init__(*args, **kwargs)
         self.empresa = empresa
-        print(f"[FORM] Empresa recebida no form: {self.empresa}")
 
         if empresa:
             self.fields['fornecedor'].queryset = Fornecedor.objects.filter(empresa=empresa)
@@ -66,7 +65,13 @@ class ContaPagarForm(forms.ModelForm):
     def save(self, commit=True):
         conta_pagar = super().save(commit=False)
         conta_pagar.calcular_saldo()
-        conta_pagar.status = 'a_vencer'  # padrão definido internamente
+
+        hoje = now().date()
+        if conta_pagar.data_vencimento < hoje:
+            conta_pagar.status = 'vencida'
+        else:
+            conta_pagar.status = 'a_vencer'
+
         if commit:
             conta_pagar.save()
         return conta_pagar

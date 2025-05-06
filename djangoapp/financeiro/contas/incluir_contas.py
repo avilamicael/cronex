@@ -1,3 +1,7 @@
+import csv, re
+from decimal import Decimal
+from datetime import datetime
+from io import TextIOWrapper
 from financeiro.models import Filial, Transacao, Fornecedor, TipoPagamento, ContaPagar
 from financeiro.forms import BaixaFormSet
 from django.contrib import messages
@@ -63,7 +67,7 @@ def baixar_contas_pagar_bulk(request):
         contas = ContaPagar.objects.filter(
             empresa=empresa,
             id__in=id_list,
-            status__in=["a_vencer", "vencido"]
+            status__in=["a_vencer", "vencida"]
         )
 
         if not contas.exists():
@@ -107,3 +111,61 @@ def baixar_contas_pagar_bulk(request):
         "financeiro/contas/baixar_contas_pagar.html",
         {"formset": formset},
     )
+
+@login_required
+def importar_contas_csv(request):
+    empresa = request.user.empresa
+
+    if request.method == 'POST' and request.FILES.get('arquivo'):
+        arquivo = request.FILES['arquivo']
+        try:
+            dados = csv.DictReader(TextIOWrapper(arquivo.file, encoding='utf-8'))
+            contas_criadas = 0
+
+            for linha in dados:
+                try:
+                    # Conversão de datas
+                    data_mov = datetime.strptime(linha['data_movimentacao'], '%d/%m/%Y').date()
+                    data_venc = datetime.strptime(linha['data_vencimento'], '%d/%m/%Y').date()
+
+                    # Limpeza de dados
+                    codigo_barras = re.sub(r'[^0-9.]', '', linha.get('codigo_barras', ''))
+                    numero_notas = re.sub(r'[^0-9,]', '', linha.get('numero_notas', ''))
+
+                    # Buscar registros relacionados
+                    filial = Filial.objects.get(cnpj=linha['cnpj_filial'], empresa=empresa)
+                    transacao = Transacao.objects.get(nome=linha['transacao'], empresa=empresa)
+                    tipo_pagamento = TipoPagamento.objects.get(nome=linha['tipo_pagamento'], empresa=empresa)
+
+                    fornecedor = None
+                    nome_fornecedor = linha.get('fornecedor', '').strip()
+                    if nome_fornecedor:
+                        fornecedor = Fornecedor.objects.get(nome=nome_fornecedor, empresa=empresa)
+
+                    conta = ContaPagar(
+                        empresa=empresa,
+                        filial=filial,
+                        transacao=transacao,
+                        fornecedor=fornecedor,
+                        tipo_pagamento=tipo_pagamento,
+                        documento=linha['documento'],
+                        data_movimentacao=data_mov,
+                        data_vencimento=data_venc,
+                        valor_bruto=Decimal(linha['valor_bruto']),
+                        descricao=linha.get('descricao', ''),
+                        numero_notas=numero_notas,
+                        codigo_barras=codigo_barras,
+                        criado_por=request.user
+                    )
+                    conta.calcular_saldo()
+                    conta.status = 'vencida' if conta.data_vencimento < now().date() else 'a_vencer'
+                    conta.save()
+                    contas_criadas += 1
+                except Exception as e:
+                    messages.warning(request, f"Erro na linha: {linha} | Erro: {e}")
+
+            messages.success(request, f"{contas_criadas} contas importadas com sucesso.")
+        except Exception as e:
+            messages.error(request, f"Erro ao processar o arquivo: {e}")
+
+    return redirect('lancar_conta_pagar')

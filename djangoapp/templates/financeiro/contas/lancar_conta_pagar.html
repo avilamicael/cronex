@@ -8,9 +8,20 @@
     <div class="page-inner">
         <div class="col-md-12">
             <div class="card">
-                <div class="card-header">
-                    <div class="card-title">Lançamento de Contas a Pagar</div>
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <div class="card-title m-0">Lançamento de Contas a Pagar</div>
+                    <form method="post" enctype="multipart/form-data" action="{% url 'importar_contas_csv' %}" class="d-flex align-items-center">
+                        {% csrf_token %}
+                        <div class="custom-file mr-2" style="max-width: 350px;">
+                            <input type="file" name="arquivo" class="custom-file-input" id="inputCsv" accept=".csv" required>
+                            <label class="custom-file-label" for="inputCsv">Escolher arquivo</label>
+                        </div>
+                        <button type="submit" class="btn btn-sm btn-success px-2 py-1 ml-2" style="font-size: 0.85rem;">
+                            <i class="fas fa-file-import mr-1"></i> Importar
+                        </button>
+                    </form>
                 </div>
+                
                 <div class="card-body">
                     <form id="conta-pagar-form" method="post" enctype="multipart/form-data">
                         {{ formset.management_form }}
@@ -188,11 +199,14 @@
     document.addEventListener("DOMContentLoaded", function () {
         const dataMovimentacao = document.getElementById("data_movimentacao");
         if (dataMovimentacao && !dataMovimentacao.value) {
-            const hoje = new Date().toISOString().split('T')[0];
-            dataMovimentacao.value = hoje;
+            const hoje = new Date();
+            const ano = hoje.getFullYear();
+            const mes = String(hoje.getMonth() + 1).padStart(2, '0');
+            const dia = String(hoje.getDate()).padStart(2, '0');
+            dataMovimentacao.value = `${ano}-${mes}-${dia}`;
         }
     });
-    </script>
+</script>
 
 <!-- Mascara valor bruto-->
 <script>
@@ -255,5 +269,22 @@
         }
     });
 </script>
+<!--Import csv-->
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const fileInput = document.querySelector('.custom-file-input');
+        const fileLabel = document.querySelector('.custom-file-label');
+
+        if (fileInput && fileLabel) {
+            fileInput.addEventListener('change', function (e) {
+                const fileName = e.target.files[0]?.name || 'Escolher arquivo';
+                fileLabel.textContent = fileName;
+                fileLabel.classList.add('selected');
+            });
+        }
+    });
+</script>
+
+
 
 {% endblock %}
