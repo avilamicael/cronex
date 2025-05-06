@@ -1,6 +1,7 @@
 from django import forms
 from .models import ContaPagar, Fornecedor, TipoPagamento
 from django.utils.timezone import now
+from django.forms import modelformset_factory
 
 class ContaPagarForm(forms.ModelForm):
     class Meta:
@@ -65,7 +66,46 @@ class ContaPagarForm(forms.ModelForm):
     def save(self, commit=True):
         conta_pagar = super().save(commit=False)
         conta_pagar.calcular_saldo()
-        conta_pagar.status = 'pendente'  # padrão definido internamente
+        conta_pagar.status = 'a_vencer'  # padrão definido internamente
         if commit:
             conta_pagar.save()
         return conta_pagar
+
+class BaixaContaPagarForm(forms.ModelForm):
+    class Meta:
+        model = ContaPagar
+        fields = [
+            "data_pagamento",
+            "valor_juros",
+            "valor_multa",
+            "valor_desconto",
+            "outros_acrescimos",
+        ]
+        widgets = {
+            "data_pagamento": forms.DateInput(attrs={"type": "date", "class": "form-control form-control-sm", "style": "width: 120px;"}),
+            "valor_juros": forms.NumberInput(attrs={"class": "form-control form-control-sm", "style": "width: 90px;"}),
+            "valor_multa": forms.NumberInput(attrs={"class": "form-control form-control-sm", "style": "width: 90px;"}),
+            "valor_desconto": forms.NumberInput(attrs={"class": "form-control form-control-sm", "style": "width: 90px;"}),
+            "outros_acrescimos": forms.NumberInput(attrs={"class": "form-control form-control-sm", "style": "width: 90px;"}),
+        }
+        labels = {
+            "data_pagamento": "Data de Pagamento",
+            "valor_juros": "Juros",
+            "valor_multa": "Multa",
+            "valor_desconto": "Desconto",
+            "outros_acrescimos": "Outros Acréscimos",
+        }
+
+    def clean(self):
+        cd = super().clean()
+        for campo in ("valor_juros", "valor_multa", "valor_desconto", "outros_acrescimos"):
+            if cd.get(campo) and cd[campo] < 0:
+                self.add_error(campo, "Valor não pode ser negativo.")
+        return cd
+
+# cria um formset sem extra forms
+BaixaFormSet = modelformset_factory(
+    ContaPagar,
+    form=BaixaContaPagarForm,
+    extra=0,
+)

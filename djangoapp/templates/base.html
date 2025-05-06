@@ -22,6 +22,7 @@
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
 
     <link rel="stylesheet" href="{% static 'css/select2-bootstrap-fix.css' %}">
+    <link rel="stylesheet" href="{% static 'css/base.css' %}">
 
 
     {% block extra_head %}{% endblock %}
@@ -64,7 +65,7 @@
                     <div class="bg-white py-2 collapse-inner rounded">
                         <h6 class="collapse-header">Contas:</h6>
                         <a class="collapse-item" href="{% url 'lancar_conta_pagar' %}">Incluir Contas a Pagar</a>
-                        <a class="collapse-item" href="{% url 'dashboard' %}">Contas a Pagar</a>
+                        <a class="collapse-item" href="{% url 'listar_contas_pagar' %}">Contas a Pagar</a>
                     </div>
                 </div>
             </li>
@@ -145,10 +146,31 @@
                         </li>
                     </ul>
                 </nav>
+
                 
                 <!-- End Topbar -->
 
                 <!-- Begin Page Content -->
+                {% if messages %}
+                <div class="mb-3">
+                  {% for message in messages %}
+                    <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags }}{% endif %} cronex-alert alert-dismissible fade show d-flex align-items-center" role="alert">
+                      <i class="fas
+                          {% if message.tags == 'success' %} fa-check-circle text-success
+                          {% elif message.tags == 'error' %} fa-times-circle text-danger
+                          {% elif message.tags == 'warning' %} fa-exclamation-triangle text-warning
+                          {% elif message.tags == 'info' %} fa-info-circle text-info
+                          {% else %} fa-info-circle text-secondary
+                          {% endif %} mr-2"></i>
+                      <div>{{ message }}</div>
+                      <button type="button" class="close ml-auto" data-dismiss="alert" aria-label="Fechar">
+                        <span aria-hidden="true">&times;</span>
+                      </button>
+                    </div>
+                  {% endfor %}
+                </div>
+              {% endif %}
+              
                 <div class="container-fluid">
                     {% block content %}
                     <!-- Conteúdo da página -->
@@ -157,7 +179,6 @@
                 <!-- /.container-fluid -->
 
             </div>
-
             <!-- Footer -->
             <footer class="sticky-footer bg-white mt-auto">
                 <div class="container my-auto">
@@ -178,7 +199,9 @@
     <script src="https://cdn.jsdelivr.net/gh/BlackrockDigital/startbootstrap-sb-admin-2@master/js/sb-admin-2.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
-    {% block extra_js %}{% endblock %}
+{% block extra_js %}
+
+{% endblock %}
 </body>
 
 </html>

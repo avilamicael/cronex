@@ -1,4 +1,9 @@
-from financeiro.models import Filial, Transacao, Fornecedor, TipoPagamento
+from financeiro.models import Filial, Transacao, Fornecedor, TipoPagamento, ContaPagar
+from financeiro.forms import BaixaFormSet
+from django.contrib import messages
+from django.shortcuts import render, redirect, get_list_or_404
+from django.db import transaction
+from django.utils.timezone import now
 from django.http import JsonResponse
 from django.contrib.auth.decorators import login_required
 from django.apps import apps
@@ -42,3 +47,63 @@ def generic_autocomplete(request, model_name):
 
     results = [{'id': obj.id, 'text': obj.nome} for obj in queryset[:20]]
     return JsonResponse({'results': results})
+
+@login_required
+def baixar_contas_pagar_bulk(request):
+    empresa = request.user.empresa
+
+    # ---------- PASSO 1: usuário acaba de clicar em “Baixar selecionadas” ----------
+    if request.method == "GET":
+        ids = request.GET.getlist("ids")  # retorna todos os valores marcados como lista
+        if not ids:
+            messages.warning(request, "Nenhuma conta selecionada.")
+            return redirect("listar_contas_pagar")
+
+        id_list = [int(i) for i in ids if i.isdigit()]
+        contas = ContaPagar.objects.filter(
+            empresa=empresa,
+            id__in=id_list,
+            status__in=["a_vencer", "vencido"]
+        )
+
+        if not contas.exists():
+            messages.error(request, "Nenhuma das contas selecionadas está disponível para baixa. Verifique o status.")
+            return redirect("listar_contas_pagar")
+
+        formset = BaixaFormSet(queryset=ContaPagar.objects.filter(id__in=id_list))
+        return render(
+            request,
+            "financeiro/contas/baixar_contas_pagar.html",
+            {"formset": formset, "contas": contas},
+        )
+
+    # ---------- PASSO 2: usuário preencheu e submeteu o formset ----------
+    formset = BaixaFormSet(request.POST)
+    if formset.is_valid():
+        with transaction.atomic():
+            for form in formset:
+                conta: ContaPagar = form.save(commit=False)
+
+                if conta.status in ["pago", "cancelado"]:
+                    messages.error(request, f"A conta {conta.id} não pode ser baixada pois já está {conta.get_status_display}.")
+                    return redirect("listar_contas_pagar")
+
+                # calcula o valor pago com base nos campos preenchidos
+                conta.valor_pago = (
+                    conta.valor_bruto
+                    + conta.valor_juros
+                    + conta.valor_multa
+                    + conta.outros_acrescimos
+                    - conta.valor_desconto
+                )
+                conta.status = "pago"
+                conta.save()
+        messages.success(request, "Contas baixadas com sucesso.")
+        return redirect("listar_contas_pagar")
+
+    # se houver erros
+    return render(
+        request,
+        "financeiro/contas/baixar_contas_pagar.html",
+        {"formset": formset},
+    )

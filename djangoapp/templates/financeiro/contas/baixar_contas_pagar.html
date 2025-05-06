@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+{% load index %}
+{% block content %}
+<div class="mb-4">
+    <h2 class="h4 font-weight-bold border-bottom pb-2">
+        <i class="fas fa-check-circle text-success mr-2"></i> Baixar Contas a Pagar
+        <span class="text-muted">({{ contas.count }})</span>
+    </h2>
+</div>
+
+<style>
+.table th, .table td {
+    white-space: nowrap;
+    vertical-align: middle;
+}
+.col-filial       { min-width: 120px; }
+.col-fornecedor   { min-width: 150px; }
+.col-documento    { min-width: 100px; }
+.col-vencimento   { min-width: 100px; }
+.col-data-pgto    { min-width: 70px; }
+.col-valor        { min-width: 70px; text-align: right; }
+.col-valor-pgto   { min-width: 70px; font-weight: bold; }
+</style>
+
+<form method="post">
+    {% csrf_token %}
+    {{ formset.management_form }}
+
+    <div class="table-responsive">
+        <div class="mb-3 d-flex align-items-center">
+            <label class="mr-2 mb-0">Atualizar data de pagamento:</label>
+            <input type="date" id="data-pagamento-global" class="form-control form-control-sm mr-2" style="width: 180px;">
+            <button type="button" class="btn btn-outline-primary btn-sm" id="btn-aplicar-data">Aplicar</button>
+        </div>        
+        
+        <table class="table table-bordered table-sm">
+            <thead class="thead-light">
+                <tr>
+                    <th style="width: 30px;"><input type="checkbox" id="check-all"></th>
+                    <th class="col-filial">Filial</th>
+                    <th class="col-fornecedor">Fornecedor</th>
+                    <th class="col-documento">Documento</th>
+                    <th class="col-vencimento">Vencimento</th>
+                    <th class="col-data-pgto">Data Pagamento</th>
+                    <th class="col-valor">Juros</th>
+                    <th class="col-valor">Multa</th>
+                    <th class="col-valor">Desconto</th>
+                    <th class="col-valor">Acréscimos</th>
+                    <th class="col-valor-pgto">Valor Pgto</th>
+                </tr>
+            </thead>
+            
+            <tbody>
+                {% for form in formset %}
+                {% with conta=contas|index:forloop.counter0 %}
+                <tr>
+                    <td><input type="checkbox" class="linha-check"></td>
+                    <td class="col-filial">{{ conta.filial.nome }}</td>
+                    <td class="col-fornecedor">{{ conta.fornecedor|default:"-" }}</td>
+                    <td class="col-documento">{{ conta.documento }}</td>
+                    <td class="col-vencimento">{{ conta.data_vencimento|date:"d/m/Y" }}</td>
+                
+                    <input type="hidden" class="valor-original" value="{{ conta.valor_bruto|floatformat:2 }}">
+                
+                    <td class="col-data-pgto">{{ form.data_pagamento }}</td>
+                    <td class="col-valor">{{ form.valor_juros }}</td>
+                    <td class="col-valor">{{ form.valor_multa }}</td>
+                    <td class="col-valor">{{ form.valor_desconto }}</td>
+                    <td class="col-valor">{{ form.outros_acrescimos }}</td>
+                    <td class="col-valor-pgto">
+                        <input type="text" class="form-control valor-pgto" readonly>
+                        <input type="hidden" name="{{ form.prefix }}-id" value="{{ form.instance.id }}">
+                    </td>
+                </tr>                
+                {% endwith %}
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="mt-3">
+        <button type="submit" class="btn btn-success">Confirmar Baixa</button>
+        <a href="{% url 'listar_contas_pagar' %}" class="btn btn-secondary">Cancelar</a>
+    </div>
+</form>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    function formatarNumero(valor) {
+        return parseFloat(valor).toLocaleString('pt-BR', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        });
+    }
+
+    function calcularValores() {
+        document.querySelectorAll("tbody tr").forEach(function (row) {
+            const saldo = parseFloat(row.querySelector(".valor-original").value.replace(',', '.')) || 0;
+            const juros = parseFloat(row.querySelector('[name$="valor_juros"]').value.replace(',', '.')) || 0;
+            const multa = parseFloat(row.querySelector('[name$="valor_multa"]').value.replace(',', '.')) || 0;
+            const desconto = parseFloat(row.querySelector('[name$="valor_desconto"]').value.replace(',', '.')) || 0;
+            const acrescimos = parseFloat(row.querySelector('[name$="outros_acrescimos"]').value.replace(',', '.')) || 0;
+
+            const valor_pgto = saldo + juros + multa + acrescimos - desconto;
+            const input_pgto = row.querySelector(".valor-pgto");
+            input_pgto.value = formatarNumero(valor_pgto);
+        });
+    }
+
+    document.querySelectorAll('input[name$="valor_juros"], input[name$="valor_multa"], input[name$="valor_desconto"], input[name$="outros_acrescimos"]').forEach(input => {
+        input.addEventListener("input", calcularValores);
+    });
+
+    calcularValores();
+
+    // aplicar data apenas nas selecionadas
+    document.getElementById("btn-aplicar-data").addEventListener("click", function () {
+        const dataGlobal = document.getElementById("data-pagamento-global").value;
+        if (!dataGlobal) {
+            alert("Selecione uma data para aplicar.");
+            return;
+        }
+
+        document.querySelectorAll("tbody tr").forEach(function (row) {
+            const checkbox = row.querySelector('.linha-check');
+            const campoData = row.querySelector('input[name$="data_pagamento"]');
+            if (checkbox && checkbox.checked && campoData) {
+                campoData.value = dataGlobal;
+            }
+        });
+    });
+
+    // selecionar/desmarcar todos
+    const checkAll = document.getElementById("check-all");
+    if (checkAll) {
+        checkAll.addEventListener("change", function () {
+            document.querySelectorAll(".linha-check").forEach(c => {
+                c.checked = checkAll.checked;
+            });
+        });
+    }
+});
+</script>
+{% endblock %}

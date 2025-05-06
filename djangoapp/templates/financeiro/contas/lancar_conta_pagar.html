@@ -18,7 +18,7 @@
                         <div class="form-group row">
                             <!-- Filial -->
                             <div class="col-md-3">
-                                <label for="filial" class="col-form-label">Filial</label>
+                                <label for="filial" class="col-form-label">Filial</label><span class="text-danger"> *</span>
                                 <select class="form-control {% if form.filial.errors %}is-invalid{% endif %}" id="filial" name="filial" required>
                                     <option value="" disabled selected>Selecione a Filial</option>
                                     {% for filial in filiais %}
@@ -32,7 +32,7 @@
                         
                             <!-- Transação -->
                             <div class="col-md-3">
-                                <label for="transacao" class="col-form-label">Transação</label>
+                                <label for="transacao" class="col-form-label">Transação</label><span class="text-danger"> *</span>
                                 <select class="form-control {% if form.transacao.errors %}is-invalid{% endif %}" id="transacao" name="transacao" required>
                                     <option value="" disabled selected>Selecione a Transação</option>
                                     {% for transacao in transacoes %}
@@ -53,7 +53,7 @@
 
                             <!-- Tipo de Pagamento -->
                             <div class="col-md-3">
-                                <label for="tipo_pagamento" class="col-form-label">Tipo de Pagamento</label>
+                                <label for="tipo_pagamento" class="col-form-label">Tipo de Pagamento</label><span class="text-danger"> *</span>
                                 <select class="form-control {% if form.tipo_pagamento.errors %}is-invalid{% endif %}" id="tipo_pagamento" name="tipo_pagamento" required>
                                     <option value="" disabled selected>Selecione o Tipo de Pagamento</option>
                                     {% for tipo in tipos_pagamento %}
@@ -71,7 +71,7 @@
                         <div class="form-group row">
                             <!-- Documento -->
                             <div class="col-md-4">
-                                <label for="documento" class="col-form-label">Documento</label>
+                                <label for="documento" class="col-form-label">Documento</label><span class="text-danger"> *</span>
                                 <input type="text" class="form-control {% if form.documento.errors %}is-invalid{% endif %}"
                                        id="documento"
                                        name="documento"
@@ -96,7 +96,7 @@
 
                             <!-- Data de Vencimento -->
                             <div class="col-md-3">
-                                <label for="data_vencimento" class="col-form-label">Data de Vencimento</label>
+                                <label for="data_vencimento" class="col-form-label">Data de Vencimento</label><span class="text-danger"> *</span>
                                 <input type="date" class="form-control {% if form.data_vencimento.errors %}is-invalid{% endif %}" id="data_vencimento" name="data_vencimento" value="{{ form.data_vencimento.value|default_if_none:'' }}" required />
                                 {% if form.data_vencimento.errors %}
                                     <small class="form-text text-muted">{{ form.data_vencimento.errors.0 }}</small>
@@ -105,7 +105,7 @@
 
                             <!-- Valor -->
                             <div class="col-md-2">
-                                <label for="valor_bruto" class="col-form-label">Valor Bruto</label>
+                                <label for="valor_bruto" class="col-form-label">Valor Bruto</label><span class="text-danger"> *</span>
                                 <input type="text" class="form-control {% if form.valor_bruto.errors %}is-invalid{% endif %}"
                                        id="valor_bruto"
                                        name="valor_bruto"

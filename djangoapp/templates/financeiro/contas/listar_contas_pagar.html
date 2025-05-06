@@ -1,0 +1,210 @@
+{% extends "base.html" %}
+{% load static %}
+{% block content %}
+
+<form id="listar-contas-form" method="get">
+    <div class="card-header">
+        <h4>Contas a Pagar</h4>
+    </div>
+    <div class="card-body">
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="fas fa-filter"></i> Filtros</span>
+                <button class="btn btn-sm btn-outline-primary" type="button" data-toggle="collapse"
+                    data-target="#filtrosCollapse">
+                    Mostrar/Ocultar
+                </button>
+            </div>
+            <div id="filtrosCollapse" class="collapse show">
+                <div class="card-body">
+                    <form method="get" id="form-filtros">
+
+                        <!-- Card interno 1: Relacionamentos -->
+                        <div class="card mb-3 border-left-primary">
+                            <div class="card-body">
+                                <div class="form-row">
+                                    <div class="col-md-3 mb-2">
+                                        <label>Filial</label>
+                                        <select id="filial" name="filial" class="form-control select2-field"
+                                            data-model="filial" data-placeholder="Selecione a Filial" multiple>
+                                            {% for id, nome in filtros.filial_nomes %}
+                                            <option value="{{ id }}" selected>{{ nome }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+
+                                    <div class="col-md-3 mb-2">
+                                        <label>Transação</label>
+                                        <select id="transacao" name="transacao" class="form-control select2-field"
+                                            data-model="transacao" data-placeholder="Selecione a Transação" multiple>
+                                            {% for id, nome in filtros.transacao_nomes %}
+                                            <option value="{{ id }}" selected>{{ nome }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+
+                                    <div class="col-md-3 mb-2">
+                                        <label>Fornecedor</label>
+                                        <select id="fornecedor" name="fornecedor" class="form-control select2-field"
+                                            data-model="fornecedor" data-placeholder="Selecione o Fornecedor" multiple>
+                                            {% for id, nome in filtros.fornecedor_nomes %}
+                                            <option value="{{ id }}" selected>{{ nome }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+
+                                    <div class="col-md-3 mb-2">
+                                        <label>Tipo Pagamento</label>
+                                        <select id="tipo_pagamento" name="tipo_pagamento"
+                                            class="form-control select2-field" data-model="tipopagamento"
+                                            data-placeholder="Selecione o Tipo de Pagamento" multiple>
+                                            {% for id, nome in filtros.tipo_pagamento_nomes %}
+                                            <option value="{{ id }}" selected>{{ nome }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+
+                        <!-- Card interno 2: Outras informações -->
+                        <div class="card border-left-secondary">
+                            <div class="card-body">
+                                <div class="form-row">
+                                    <div class="col-md-3 mb-2">
+                                        <label>Documento</label>
+                                        <input type="text" name="documento" class="form-control"
+                                            value="{{ filtros.documento }}">
+                                    </div>
+
+                                    <div class="col-md-3 mb-2">
+                                        <label>Nota Fiscal</label>
+                                        <input type="text" name="numero_notas" class="form-control"
+                                            value="{{ filtros.numero_notas }}">
+                                    </div>
+
+                                    <div class="col-md-3 mb-2">
+                                        <label>Movimentação De</label>
+                                        <input type="date" name="movimentacao_de" class="form-control"
+                                            value="{{ filtros.movimentacao_de }}">
+                                    </div>
+
+                                    <div class="col-md-3 mb-2">
+                                        <label>Movimentação Até</label>
+                                        <input type="date" name="movimentacao_ate" class="form-control"
+                                            value="{{ filtros.movimentacao_ate }}">
+                                    </div>
+
+                                    <div class="col-md-3 mb-2">
+                                        <label>Vencimento De</label>
+                                        <input type="date" name="vencimento_de" class="form-control"
+                                            value="{{ filtros.vencimento_de }}">
+                                    </div>
+
+                                    <div class="col-md-3 mb-2">
+                                        <label>Vencimento Até</label>
+                                        <input type="date" name="vencimento_ate" class="form-control"
+                                            value="{{ filtros.vencimento_ate }}">
+                                    </div>
+
+                                    <div class="col-md-3 mb-2">
+                                        <label>Status</label>
+                                        <select name="status" class="form-control">
+                                            <option value="">Todos</option>
+                                            {% for key, val in contas.model.STATUS_CHOICES %}
+                                                <option value="{{ key }}" {% if filtros.status == key %}selected{% endif %}>{{ val }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+
+                                    <div class="col-md-3 mb-2 align-self-end">
+                                        <button type="submit" class="btn btn-primary w-100">Filtrar</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </form>
+                </div>
+            </div>
+        </div>
+</form>
+
+<hr>
+
+<form id="selecionar-contas-form" method="get" action="{% url 'baixar_contas_pagar_bulk' %}">
+    <div class="table-responsive">
+
+        <table class="table table-sm">
+            <thead>
+                <tr>
+                    <th><input type="checkbox" id="check-all"></th>
+                    <th>Filial</th>
+                    <th>Status</th>
+                    <th>Venc.</th>
+                    <th>Fornecedor</th>
+                    <th>Documento</th>
+                    <th>Valor</th>
+                    <th>Descrição</th>
+                    <th>Notas</th>
+                    <th>Cod. Barras</th>
+                    <!-- demais colunas -->
+                </tr>
+            </thead>
+            <tbody>
+                {% for conta in contas %}
+                <tr>
+                    <td>
+                        <input type="checkbox" name="ids" value="{{ conta.id }}" class="chk-conta">
+                    </td>
+                    <td>{{ conta.filial }}</td>
+                    <td>{{ conta.get_status_display }}</td>
+                    <td>{{ conta.data_vencimento|date:"d/m/Y" }}</td>
+                    <td>{{ conta.fornecedor|default:"—" }}</td>
+                    <td>{{ conta.documento }}</td>
+                    <td>{{ conta.valor_bruto|floatformat:2 }}</td>
+                    <td title="{{ conta.descricao }}">{{ conta.descricao|truncatechars:25 }}</td>
+                    <td>{{ conta.numero_notas|default:"-" }}</td>
+                    <td>{{ conta.codigo_barras }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="10">Nenhuma conta encontrada.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <button type="submit" class="btn btn-primary" id="btn-baixar" disabled>Baixar selecionadas</button>
+</form>
+
+<!--Selecionar checks-->
+<script>
+    document.getElementById("check-all").addEventListener("change", function () {
+        document.querySelectorAll(".chk-conta").forEach(c => c.checked = this.checked);
+        toggleButton();
+    });
+    document.querySelectorAll(".chk-conta").forEach(c => c.addEventListener("change", toggleButton));
+    function toggleButton() {
+        const anyChecked = document.querySelectorAll(".chk-conta:checked").length;
+        document.getElementById("btn-baixar").disabled = !anyChecked;
+    }
+</script>
+
+{% block extra_js %}
+<script src="{% static 'js/autocomplete.js' %}"></script>
+
+<script>
+    $(document).ready(function () {
+        initSelect2Ajax('fornecedor', '{% url "generic_autocomplete" "Fornecedor" %}', 'Selecione o Fornecedor');
+        initSelect2Ajax('tipo_pagamento', '{% url "generic_autocomplete" "TipoPagamento" %}', 'Selecione o Tipo de Pagamento');
+        initSelect2Ajax('transacao', '{% url "generic_autocomplete" "Transacao" %}', 'Selecione a Transação');
+        initSelect2Ajax('filial', '{% url "generic_autocomplete" "Filial" %}', 'Selecione a Filial');
+    });
+</script>
+
+{% endblock %}
+
+{% endblock %}

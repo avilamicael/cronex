@@ -5,9 +5,10 @@ from accounts.models import Empresa
 class Filial(models.Model):
     empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE)
     nome = models.CharField(max_length=255)
+    cnpj = models.CharField(max_length=20, blank=True, null=True)
 
     def __str__(self):
-        return f"{self.nome} ({self.empresa.nome})"
+        return f"{self.nome}"
     
     class Meta:
         verbose_name = 'Filial'
@@ -59,8 +60,7 @@ class TipoPagamento(models.Model):
     
 class ContaPagar(models.Model):
     STATUS_CHOICES = [
-        ('pendente', 'Pendente'),
-        ('parcial', 'Parcialmente Pago'),
+        ('a_vencer', 'À Vencer'),
         ('pago', 'Pago'),
         ('vencido', 'Vencido'),
         ('cancelado', 'Cancelado'),
@@ -92,7 +92,7 @@ class ContaPagar(models.Model):
     valor_pago = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     valor_saldo = models.DecimalField(max_digits=10, decimal_places=2, default=0)
 
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pendente')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='a_vencer')
     criado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
 
     data_criacao = models.DateTimeField(auto_now_add=True)
@@ -115,3 +115,16 @@ class ContaPagar(models.Model):
         # Chama o método para calcular o saldo antes de salvar
         self.calcular_saldo()
         super().save(*args, **kwargs)
+
+    def marcar_como_pago(self):
+        self.valor_pago = (
+            self.valor_bruto
+            + self.valor_juros
+            + self.valor_multa
+            + self.outros_acrescimos
+            - self.valor_desconto
+        )
+        self.status = "pago"
+        self.save()
+        # Atualiza o status para "pago" e salva a conta
+
