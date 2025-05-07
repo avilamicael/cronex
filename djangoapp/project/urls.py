@@ -24,6 +24,7 @@ from django.views.generic import RedirectView
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('accounts/', include('django.contrib.auth.urls')),  # login, logout
+    path('accounts/', include('accounts.urls')),
     path('', include('core.urls')),  # Inclui URLs do app core
     path('financeiro/', include('financeiro.urls')),  # Inclui URLs do app financeiro
 

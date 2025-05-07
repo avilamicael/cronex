@@ -25,6 +25,8 @@ class Empresa(models.Model):
 class User(AbstractUser):
     email = models.EmailField(unique=True)
     empresa = models.ForeignKey('Empresa', on_delete=models.CASCADE)
+    telefone = models.CharField(max_length=20, blank=True, null=True)
+    telegram_chat_id = models.CharField(max_length=50, blank=True, null=True)
     nivel_acesso = models.CharField(
         max_length=50,
         choices=[
