@@ -1,8 +1,11 @@
+from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.contrib import messages
+import os
 from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
 from .forms import ContaPagarForm
 from .models import Filial, Transacao, Fornecedor, TipoPagamento, ContaPagar
+from financeiro.contas.incluir_contas import _importar_csv, _importar_xml
 
 @login_required
 def lancar_conta_pagar(request):
@@ -111,7 +114,38 @@ def listar_contas_pagar(request):
     filtros['tipo_pagamento_ids'] = tipo_pagamento_ids
     filtros['tipo_pagamento_nomes'] = list(TipoPagamento.objects.filter(id__in=tipo_pagamento_ids).values_list('id', 'nome'))
 
-    return render(request, 'financeiro/contas/listar_contas_pagar.html', {
-        'contas': contas,
-        'filtros': filtros,
+    # ---------- PAGINAÇÃO ----------
+    page_size = int(request.GET.get("page_size", 25))         # default 25 linhas
+    paginator = Paginator(contas, page_size)
+
+    page_number = request.GET.get("page")
+    try:
+        page_obj = paginator.page(page_number)
+    except PageNotAnInteger:
+        page_obj = paginator.page(1)
+    except EmptyPage:
+        page_obj = paginator.page(paginator.num_pages)
+
+    return render(request, "financeiro/contas/listar_contas_pagar.html", {
+        "contas": page_obj.object_list,   # só as da página atual
+        "page_obj": page_obj,             # usado no template
+        "filtros": filtros,
+        "page_size": page_size,
+        "sizes": [10, 25, 50, 100],
     })
+
+@login_required
+def importar_contas_arquivo(request):
+    empresa = request.user.empresa
+
+    if request.method == 'POST' and request.FILES.getlist('arquivo'):
+        arquivos = request.FILES.getlist('arquivo')
+        for arquivo in arquivos:
+            ext = os.path.splitext(arquivo.name)[1].lower()
+            if ext == '.csv':
+                _importar_csv(arquivo, request, empresa)
+            elif ext == '.xml':
+                _importar_xml(arquivo, request, empresa)
+            else:
+                messages.error(request, f"Formato não suportado: {arquivo.name}")
+    return redirect('lancar_conta_pagar')

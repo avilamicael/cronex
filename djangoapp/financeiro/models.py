@@ -1,33 +1,26 @@
 from django.db import models
 from django.conf import settings
 from accounts.models import Empresa
+import re
 
 class Filial(models.Model):
     empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE)
     nome = models.CharField(max_length=255)
     cnpj = models.CharField(max_length=20, blank=True, null=True)
 
+    def save(self, *args, **kwargs):
+        if self.nome:
+            self.nome = self.nome.upper()
+        if self.cnpj:
+            self.cnpj = re.sub(r'\D', '', self.cnpj)  # Remove tudo que não for número
+        super().save(*args, **kwargs)
+
     def __str__(self):
         return f"{self.nome}"
-    
+
     class Meta:
         verbose_name = 'Filial'
         verbose_name_plural = 'Filiais'
-        ordering = ['nome']
-        unique_together = ('empresa', 'nome')
-        # Adicionando unique_together para garantir que o nome da filial seja único por empresa
-        # Isso significa que duas empresas podem ter filiais com o mesmo nome, mas não dentro da mesma empresa.
-
-class Transacao(models.Model):
-    empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE)
-    nome = models.CharField(max_length=255)
-
-    def __str__(self):
-        return self.nome
-    
-    class Meta:
-        verbose_name = 'Transação'
-        verbose_name_plural = 'Transações'
         ordering = ['nome']
         unique_together = ('empresa', 'nome')
 
@@ -36,12 +29,37 @@ class Fornecedor(models.Model):
     nome = models.CharField(max_length=255)
     cnpj = models.CharField(max_length=20, blank=True, null=True)
 
+    def save(self, *args, **kwargs):
+        if self.nome:
+            self.nome = self.nome.upper()
+        if self.cnpj:
+            self.cnpj = re.sub(r'\D', '', self.cnpj)
+        super().save(*args, **kwargs)
+
     def __str__(self):
         return self.nome
-    
+
     class Meta:
         verbose_name = 'Fornecedor'
         verbose_name_plural = 'Fornecedores'
+        ordering = ['nome']
+        unique_together = ('empresa', 'nome')
+
+class Transacao(models.Model):
+    empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE)
+    nome = models.CharField(max_length=255)
+
+    def save(self, *args, **kwargs):
+        if self.nome:
+            self.nome = self.nome.upper()
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.nome
+
+    class Meta:
+        verbose_name = 'Transação'
+        verbose_name_plural = 'Transações'
         ordering = ['nome']
         unique_together = ('empresa', 'nome')
 
@@ -49,15 +67,20 @@ class TipoPagamento(models.Model):
     empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE)
     nome = models.CharField(max_length=100)
 
+    def save(self, *args, **kwargs):
+        if self.nome:
+            self.nome = self.nome.upper()
+        super().save(*args, **kwargs)
+
     def __str__(self):
         return self.nome
-    
+
     class Meta:
         verbose_name = 'Tipo de Pagamento'
         verbose_name_plural = 'Tipos de Pagamento'
         ordering = ['nome']
         unique_together = ('empresa', 'nome')
-    
+
 class ContaPagar(models.Model):
     STATUS_CHOICES = [
         ('a_vencer', 'À Vencer'),

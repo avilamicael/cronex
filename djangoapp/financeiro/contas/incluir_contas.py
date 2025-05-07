@@ -1,4 +1,5 @@
 import csv, re
+import xml.etree.ElementTree as ET
 from decimal import Decimal
 from datetime import datetime
 from io import TextIOWrapper
@@ -105,67 +106,161 @@ def baixar_contas_pagar_bulk(request):
         messages.success(request, "Contas baixadas com sucesso.")
         return redirect("listar_contas_pagar")
 
-    # se houver erros
+    ids = [form.instance.id for form in formset.forms]
+    contas = ContaPagar.objects.filter(id__in=ids, empresa=empresa)
+    messages.error(request, "Preencha todos os campos obrigatórios antes de confirmar a baixa.")
+
     return render(
         request,
         "financeiro/contas/baixar_contas_pagar.html",
-        {"formset": formset},
+        {"formset": formset, "contas": contas},
     )
 
-@login_required
-def importar_contas_csv(request):
-    empresa = request.user.empresa
+def _importar_csv(arquivo, request, empresa):
+    try:
+        dados = csv.DictReader(TextIOWrapper(arquivo.file, encoding='utf-8'))
+        contas_criadas = 0
 
-    if request.method == 'POST' and request.FILES.get('arquivo'):
-        arquivo = request.FILES['arquivo']
-        try:
-            dados = csv.DictReader(TextIOWrapper(arquivo.file, encoding='utf-8'))
-            contas_criadas = 0
+        for linha in dados:
+            try:
+                # Conversão de datas
+                data_mov = datetime.strptime(linha['data_movimentacao'], '%d/%m/%Y').date()
+                data_venc = datetime.strptime(linha['data_vencimento'], '%d/%m/%Y').date()
 
-            for linha in dados:
-                try:
-                    # Conversão de datas
-                    data_mov = datetime.strptime(linha['data_movimentacao'], '%d/%m/%Y').date()
-                    data_venc = datetime.strptime(linha['data_vencimento'], '%d/%m/%Y').date()
+                # Limpeza de dados
+                codigo_barras = re.sub(r'[^0-9.]', '', linha.get('codigo_barras', ''))
+                numero_notas = re.sub(r'[^0-9,]', '', linha.get('numero_notas', ''))
 
-                    # Limpeza de dados
-                    codigo_barras = re.sub(r'[^0-9.]', '', linha.get('codigo_barras', ''))
-                    numero_notas = re.sub(r'[^0-9,]', '', linha.get('numero_notas', ''))
+                # Buscar ou criar Filial
+                filial, _ = Filial.objects.get_or_create(
+                    cnpj=linha['cnpj_filial'],
+                    empresa=empresa,
+                    defaults={'nome': linha['cnpj_filial']}
+                )
 
-                    # Buscar registros relacionados
-                    filial = Filial.objects.get(cnpj=linha['cnpj_filial'], empresa=empresa)
-                    transacao = Transacao.objects.get(nome=linha['transacao'], empresa=empresa)
-                    tipo_pagamento = TipoPagamento.objects.get(nome=linha['tipo_pagamento'], empresa=empresa)
+                # Buscar ou criar Transação e Tipo de Pagamento
+                transacao, _ = Transacao.objects.get_or_create(nome=linha['transacao'], empresa=empresa)
+                tipo_pagamento, _ = TipoPagamento.objects.get_or_create(nome=linha['tipo_pagamento'], empresa=empresa)
 
-                    fornecedor = None
-                    nome_fornecedor = linha.get('fornecedor', '').strip()
-                    if nome_fornecedor:
-                        fornecedor = Fornecedor.objects.get(nome=nome_fornecedor, empresa=empresa)
-
-                    conta = ContaPagar(
+                # Buscar ou criar Fornecedor
+                fornecedor = None
+                nome_fornecedor = linha.get('fornecedor', '').strip()
+                if nome_fornecedor:
+                    fornecedor, _ = Fornecedor.objects.get_or_create(
+                        nome=nome_fornecedor,
                         empresa=empresa,
-                        filial=filial,
-                        transacao=transacao,
-                        fornecedor=fornecedor,
-                        tipo_pagamento=tipo_pagamento,
-                        documento=linha['documento'],
-                        data_movimentacao=data_mov,
-                        data_vencimento=data_venc,
-                        valor_bruto=Decimal(linha['valor_bruto']),
-                        descricao=linha.get('descricao', ''),
-                        numero_notas=numero_notas,
-                        codigo_barras=codigo_barras,
-                        criado_por=request.user
+                        defaults={'cnpj': '00000000000000'}
                     )
-                    conta.calcular_saldo()
-                    conta.status = 'vencida' if conta.data_vencimento < now().date() else 'a_vencer'
-                    conta.save()
-                    contas_criadas += 1
-                except Exception as e:
-                    messages.warning(request, f"Erro na linha: {linha} | Erro: {e}")
 
-            messages.success(request, f"{contas_criadas} contas importadas com sucesso.")
-        except Exception as e:
-            messages.error(request, f"Erro ao processar o arquivo: {e}")
+                conta = ContaPagar(
+                    empresa=empresa,
+                    filial=filial,
+                    transacao=transacao,
+                    fornecedor=fornecedor,
+                    tipo_pagamento=tipo_pagamento,
+                    documento=linha['documento'],
+                    data_movimentacao=data_mov,
+                    data_vencimento=data_venc,
+                    valor_bruto=Decimal(linha['valor_bruto']),
+                    descricao=linha.get('descricao', ''),
+                    numero_notas=numero_notas,
+                    codigo_barras=codigo_barras,
+                    criado_por=request.user
+                )
+                conta.calcular_saldo()
+                conta.status = 'vencida' if conta.data_vencimento < now().date() else 'a_vencer'
+                conta.save()
+                contas_criadas += 1
+            except Exception as e:
+                messages.warning(request, f"Erro na linha: {linha} | Erro: {e}")
 
-    return redirect('lancar_conta_pagar')
+        messages.success(request, f"{contas_criadas} contas importadas de {arquivo.name}")
+    except Exception as e:
+        messages.error(request, f"Erro ao processar o arquivo CSV {arquivo.name}: {e}")
+
+def _importar_xml(arquivo, request, empresa):
+    try:
+        tree = ET.parse(arquivo)
+        root = tree.getroot()
+        ns = {'ns': 'http://www.portalfiscal.inf.br/nfe'}
+        contas_criadas = 0
+
+        emit = root.find('.//ns:emit', ns)
+        dest = root.find('.//ns:dest', ns)
+        ide = root.find('.//ns:ide', ns)
+        cobr = root.find('.//ns:cobr', ns)
+        infAdic = root.find('.//ns:infAdic/ns:infCpl', ns)
+
+        # Dados do fornecedor (emitente)
+        cnpj_emit = emit.find('ns:CNPJ', ns).text
+        nome_emit = emit.find('ns:xNome', ns).text
+        fornecedor, _ = Fornecedor.objects.get_or_create(cnpj=cnpj_emit, empresa=empresa, defaults={'nome': nome_emit})
+
+        # Dados da filial (destinatário)
+        cnpj_dest = dest.find('ns:CNPJ', ns).text
+        nome_dest = dest.find('ns:xNome', ns).text
+        filial, _ = Filial.objects.get_or_create(cnpj=cnpj_dest, empresa=empresa, defaults={'nome': nome_dest})
+
+        # Documento e descrição
+        numero_nf = ide.find('ns:nNF', ns).text
+        descricao = infAdic.text if infAdic is not None else ''
+        data_mov = datetime.strptime(ide.find('ns:dhEmi', ns).text[:10], "%Y-%m-%d").date()
+
+        # Verifica se o arquivo ja foi importado
+        if ContaPagar.objects.filter(empresa=empresa, fornecedor=fornecedor, numero_notas=numero_nf).exists():
+            messages.warning(request, f"A nota fiscal {numero_nf} do fornecedor {fornecedor.nome} já foi importada.")
+            return
+
+
+        # Transação padrão
+        transacao, _ = Transacao.objects.get_or_create(nome="IMPORTACAO XML", empresa=empresa)
+        tipo_pagamento, _ = TipoPagamento.objects.get_or_create(nome="BOLETO", empresa=empresa)
+
+        # Duplicatas
+        duplicatas = root.findall('.//ns:dup', ns)
+        if duplicatas:
+            for dup in duplicatas:
+                vencimento = datetime.strptime(dup.find('ns:dVenc', ns).text, "%Y-%m-%d").date()
+                valor = Decimal(dup.find('ns:vDup', ns).text)
+                conta = ContaPagar.objects.create(
+                    empresa=empresa,
+                    filial=filial,
+                    fornecedor=fornecedor,
+                    transacao=transacao,
+                    tipo_pagamento=tipo_pagamento,
+                    documento=numero_nf,
+                    numero_notas=numero_nf,
+                    descricao=descricao,
+                    data_movimentacao=data_mov,
+                    data_vencimento=vencimento,
+                    valor_bruto=valor,
+                    criado_por=request.user
+                )
+                conta.calcular_saldo()
+                conta.status = 'vencida' if vencimento < now().date() else 'a_vencer'
+                conta.save()
+                contas_criadas += 1
+        else:
+            valor_nf = Decimal(root.find('.//ns:ICMSTot/ns:vNF', ns).text)
+            conta = ContaPagar.objects.create(
+                empresa=empresa,
+                filial=filial,
+                fornecedor=fornecedor,
+                transacao=transacao,
+                tipo_pagamento=tipo_pagamento,
+                documento=numero_nf,
+                numero_notas=numero_nf,
+                descricao=descricao,
+                data_movimentacao=data_mov,
+                data_vencimento=data_mov,
+                valor_bruto=valor_nf,
+                criado_por=request.user
+            )
+            conta.calcular_saldo()
+            conta.status = 'vencida' if conta.data_vencimento < now().date() else 'a_vencer'
+            conta.save()
+            contas_criadas += 1
+
+        messages.success(request, f"{contas_criadas} contas importadas do arquivo {arquivo.name}.")
+    except Exception as e:
+        messages.error(request, f"Erro ao importar {arquivo.name}: {e}")

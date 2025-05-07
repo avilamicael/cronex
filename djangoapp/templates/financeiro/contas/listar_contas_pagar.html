@@ -132,10 +132,37 @@
 </form>
 
 <hr>
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap">
+    <div class="form-inline">
+        <label for="page_size" class="mr-2 font-weight-bold">Mostrar:</label>
+        <form method="get" class="form-inline">
+            <select name="page_size" id="page_size" class="custom-select custom-select-sm mr-2" onchange="this.form.submit()">
+                {% for size in sizes %}
+                    <option value="{{ size }}" {% if page_size|stringformat:'i' == size|stringformat:'i' %}selected{% endif %}>
+                        {{ size }}
+                    </option>
+                {% endfor %}
+            </select>
+            <span class="text-muted">linhas por página</span>
 
+            {# preserva filtros atuais #}
+            {% for key, val in request.GET.items %}
+                {% if key != 'page_size' and key != 'page' %}
+                    <input type="hidden" name="{{ key }}" value="{{ val }}">
+                {% endif %}
+            {% endfor %}
+        </form>
+    </div>
+
+    <div>
+        <small class="text-muted">
+            Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }} —
+            Total: {{ page_obj.paginator.count }} contas
+        </small>
+    </div>
+</div>
 <form id="selecionar-contas-form" method="get" action="{% url 'baixar_contas_pagar_bulk' %}">
     <div class="table-responsive">
-
         <table class="table table-sm">
             <thead>
                 <tr>
@@ -177,6 +204,41 @@
                 {% endfor %}
             </tbody>
         </table>
+        <nav aria-label="Paginação">
+            <ul class="pagination justify-content-center">
+          
+              {% if page_obj.has_previous %}
+                <li class="page-item">
+                  <a class="page-link" href="?page={{ page_obj.previous_page_number }}&{{ request.GET.urlencode|cut:'page='|cut:'&page=' }}" aria-label="Anterior">
+                    <span aria-hidden="true">&laquo;</span>
+                  </a>
+                </li>
+              {% else %}
+                <li class="page-item disabled"><span class="page-link">&laquo;</span></li>
+              {% endif %}
+          
+              {% for num in page_obj.paginator.page_range %}
+                {% if page_obj.number == num %}
+                  <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+                {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                  <li class="page-item">
+                    <a class="page-link" href="?page={{ num }}&{{ request.GET.urlencode|cut:'page='|cut:'&page=' }}">{{ num }}</a>
+                  </li>
+                {% endif %}
+              {% endfor %}
+          
+              {% if page_obj.has_next %}
+                <li class="page-item">
+                  <a class="page-link" href="?page={{ page_obj.next_page_number }}&{{ request.GET.urlencode|cut:'page='|cut:'&page=' }}" aria-label="Próxima">
+                    <span aria-hidden="true">&raquo;</span>
+                  </a>
+                </li>
+              {% else %}
+                <li class="page-item disabled"><span class="page-link">&raquo;</span></li>
+              {% endif %}
+            </ul>
+          </nav>
+          
     </div>
 
     <button type="submit" class="btn btn-primary" id="btn-baixar" disabled>Baixar selecionadas</button>

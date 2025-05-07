@@ -103,6 +103,10 @@ class BaixaContaPagarForm(forms.ModelForm):
 
     def clean(self):
         cd = super().clean()
+
+        if not cd.get("data_pagamento"):
+            self.add_error("data_pagamento", "A data de pagamento é obrigatória.")
+
         for campo in ("valor_juros", "valor_multa", "valor_desconto", "outros_acrescimos"):
             if cd.get(campo) and cd[campo] < 0:
                 self.add_error(campo, "Valor não pode ser negativo.")
