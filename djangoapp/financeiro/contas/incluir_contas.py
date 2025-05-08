@@ -128,20 +128,18 @@ def _importar_csv(arquivo, request, empresa):
                 data_venc = datetime.strptime(linha['data_vencimento'], '%d/%m/%Y').date()
 
                 # Limpeza de dados
-                cnpj_filial = re.sub(r'[^0-9]', '', linha.get('cnpj_filial', ''))
+                cnpj_filial = re.sub(r'[^0-9]', '', linha.get('cnpj_filial', '')).strip()
                 nome_filial_csv = linha.get('nome_filial', '').strip() or cnpj_filial
                 codigo_barras = re.sub(r'[^0-9.]', '', linha.get('codigo_barras', ''))
                 numero_notas = re.sub(r'[^0-9,]', '', linha.get('numero_notas', ''))
                 valor_bruto = Decimal(linha['valor_bruto'].replace(',', '.'))
 
                 # Buscar ou criar Filial
-                filial = Filial.objects.filter(cnpj=cnpj_filial, empresa=empresa).first()
-                if not filial:
-                    filial = Filial.objects.create(
-                        cnpj=cnpj_filial,
-                        nome=nome_filial_csv,
-                        empresa=empresa
-                    )
+                filial, _ = Filial.objects.get_or_create(
+                    empresa=empresa,
+                    cnpj=cnpj_filial,
+                    defaults={'nome': nome_filial_csv}
+                )
 
                 # Buscar ou criar Transação e Tipo de Pagamento
                 transacao, _ = Transacao.objects.get_or_create(nome=linha['transacao'], empresa=empresa)
