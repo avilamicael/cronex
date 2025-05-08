@@ -132,6 +132,7 @@ def _importar_csv(arquivo, request, empresa):
                 nome_filial_csv = linha.get('nome_filial', '').strip() or cnpj_filial
                 codigo_barras = re.sub(r'[^0-9.]', '', linha.get('codigo_barras', ''))
                 numero_notas = re.sub(r'[^0-9,]', '', linha.get('numero_notas', ''))
+                valor_bruto = Decimal(linha['valor_bruto'].replace(',', '.'))
 
                 # Buscar ou criar Filial
                 filial = Filial.objects.filter(cnpj=cnpj_filial, empresa=empresa).first()
@@ -165,7 +166,7 @@ def _importar_csv(arquivo, request, empresa):
                     documento=linha['documento'],
                     data_movimentacao=data_mov,
                     data_vencimento=data_venc,
-                    valor_bruto=Decimal(linha['valor_bruto']),
+                    valor_bruto=valor_bruto,
                     descricao=linha.get('descricao', ''),
                     numero_notas=numero_notas,
                     codigo_barras=codigo_barras,
