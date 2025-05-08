@@ -1,0 +1,26 @@
+/* Corrige visual do Select2 para parecer com form-control */
+.select2-container--default .select2-selection--single {
+    height: calc(2.25rem + 2px);
+    border: 1px solid #ced4da;
+    padding: 0.375rem 0.75rem;
+    font-size: 1rem;
+    border-radius: 0.25rem;
+    line-height: 1.5;
+}
+
+.select2-container--default .select2-selection--single .select2-selection__rendered {
+    line-height: 1.5;
+}
+
+/* Oculta o select original visualmente, mas mantém para o Select2 funcionar */
+.select2-hidden-accessible {
+    position: absolute !important;
+    width: 1px !important;
+    height: 1px !important;
+    padding: 0 !important;
+    margin: -1px !important;
+    overflow: hidden !important;
+    clip: rect(0, 0, 0, 0) !important;
+    border: 0 !important;
+}
+

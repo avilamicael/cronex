@@ -1,0 +1,79 @@
+/* Mensagens */
+.alert.cronex-alert {
+    font-weight: 600;
+    font-size: 15px;
+    border-left: 6px solid #1cc88a;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    padding: 0.75rem 1rem;
+    margin-bottom: 1rem;
+    transition: all 0.3s ease-in-out;
+}
+
+.alert-danger.cronex-alert {
+    border-left-color: #e74a3b;
+    background-color: #f8d7da;
+    color: #721c24;
+}
+
+.alert-success.cronex-alert {
+    border-left-color: #1cc88a;
+    background-color: #d4edda;
+    color: #155724;
+}
+
+.alert-warning.cronex-alert {
+    border-left-color: #f6c23e;
+    background-color: #fff3cd;
+    color: #856404;
+}
+
+.alert-info.cronex-alert {
+    border-left-color: #36b9cc;
+    background-color: #d1ecf1;
+    color: #0c5460;
+}
+
+.alert .close {
+    color: inherit;
+    opacity: 0.7;
+    font-size: 1.2rem;
+    line-height: 1;
+}
+
+/* Status */
+
+.status-a_vencer {
+    color: #856404;
+    background-color: #fff3cd;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 4px;
+    display: inline-block;
+}
+
+.status-vencida {
+    color: #721c24;
+    background-color: #f8d7da;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 4px;
+    display: inline-block;
+}
+
+.status-pago {
+    color: #155724;
+    background-color: #d4edda;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 4px;
+    display: inline-block;
+}
+
+.status-cancelado {
+    color: #383d41;
+    background-color: #e2e3e5;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 4px;
+    display: inline-block;
+}
