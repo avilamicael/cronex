@@ -28,6 +28,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django_celery_beat',
     'accounts',
     'core',
     'financeiro',
@@ -139,3 +140,8 @@ DATA_UPLOAD_MAX_NUMBER_FILES = 500
 DATA_UPLOAD_MAX_MEMORY_SIZE = 104857600  # 100MB, por exemplo
 
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN', 'change-me')
+
+CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL', 'redis://localhost:6379/0')
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_BACKEND = None  # se não for usar resultados
