@@ -171,6 +171,7 @@
                     <th>Status</th>
                     <th>Venc.</th>
                     <th>Fornecedor</th>
+                    <th>Transação</th>
                     <th>Documento</th>
                     <th>Valor</th>
                     <th>Descrição</th>
@@ -191,6 +192,7 @@
                     </td>
                     <td>{{ conta.data_vencimento|date:"d/m/Y" }}</td>
                     <td>{{ conta.fornecedor|default:"" }}</td>
+                    <td>{{ conta.transacao.nome }}</td>
                     <td>{{ conta.documento }}</td>
                     <td>{{ conta.valor_bruto|floatformat:2 }}</td>
                     <td title="{{ conta.descricao }}">{{ conta.descricao|truncatechars:25 }}</td>
