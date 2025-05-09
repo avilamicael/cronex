@@ -12,6 +12,7 @@ from django.utils.timezone import now
 from django.http import JsonResponse
 from django.contrib.auth.decorators import login_required
 from django.apps import apps
+from django.utils.timezone import now
 
 def obter_filiais(empresa):
     return Filial.objects.filter(empresa=empresa)
@@ -79,7 +80,9 @@ def baixar_contas_pagar_bulk(request):
         return render(
             request,
             "financeiro/contas/baixar_contas_pagar.html",
-            {"formset": formset, "contas": contas},
+            {"formset": formset, 
+            "contas": contas,
+            "today": now().date(),}
         )
 
     # ---------- PASSO 2: usuário preencheu e submeteu o formset ----------
@@ -113,7 +116,10 @@ def baixar_contas_pagar_bulk(request):
     return render(
         request,
         "financeiro/contas/baixar_contas_pagar.html",
-        {"formset": formset, "contas": contas},
+        {"formset": formset, 
+        "contas": contas,
+        "today": now().date(),}
+
     )
 
 def _importar_csv(arquivo, request, empresa):

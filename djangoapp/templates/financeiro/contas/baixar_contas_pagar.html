@@ -29,7 +29,7 @@
     <div class="table-responsive">
         <div class="mb-3 d-flex align-items-center">
             <label class="mr-2 mb-0">Atualizar data de pagamento:</label>
-            <input type="date" id="data-pagamento-global" class="form-control form-control-sm mr-2" style="width: 180px;">
+            <input type="date" id="data-pagamento-global" class="form-control form-control-sm mr-2" style="width: 180px;" value="{{ today|date:'Y-m-d' }}">
             <button type="button" class="btn btn-outline-primary btn-sm" id="btn-aplicar-data">Aplicar</button>
         </div>        
         
@@ -54,7 +54,7 @@
                 {% for form in formset %}
                 {% with conta=contas|index:forloop.counter0 %}
                 <tr>
-                    <td><input type="checkbox" class="linha-check"></td>
+                    <td><input type="checkbox" class="linha-check" checked></td>
                     <td class="col-filial">{{ conta.filial.nome }}</td>
                     <td class="col-fornecedor">{{ conta.fornecedor|default:"-" }}</td>
                     <td class="col-documento">{{ conta.documento }}</td>
