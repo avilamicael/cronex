@@ -7,17 +7,19 @@
 <div class="container">
     <h4 class="mb-4">Configurações do Usuário</h4>
 
+    <!-- Formulário de dados pessoais -->
     <div class="card shadow mb-4">
         <div class="card-body">
             <form method="post" novalidate>
                 {% csrf_token %}
+                {{ form.non_field_errors }}
 
                 <div class="form-group row">
                     <div class="col-md-6">
                         <label for="first_name">Nome</label>
                         {{ form.first_name }}
                         {% if form.first_name.errors %}
-                            <div class="text-danger small">{{ form.first_name.errors.0 }}</div>
+                        <div class="text-danger small">{{ form.first_name.errors.0 }}</div>
                         {% endif %}
                     </div>
 
@@ -25,7 +27,7 @@
                         <label for="last_name">Sobrenome</label>
                         {{ form.last_name }}
                         {% if form.last_name.errors %}
-                            <div class="text-danger small">{{ form.last_name.errors.0 }}</div>
+                        <div class="text-danger small">{{ form.last_name.errors.0 }}</div>
                         {% endif %}
                     </div>
                 </div>
@@ -35,15 +37,16 @@
                         <label for="email">E-mail</label>
                         {{ form.email }}
                         {% if form.email.errors %}
-                            <div class="text-danger small">{{ form.email.errors.0 }}</div>
+                        <div class="text-danger small">{{ form.email.errors.0 }}</div>
                         {% endif %}
                     </div>
 
                     <div class="col-md-6">
-                        <label for="telefone">Telefone <small class="text-muted">(Apenas números com DDD)</small></label>
+                        <label for="telefone">Telefone <small class="text-muted">(Apenas números com
+                                DDD)</small></label>
                         {{ form.telefone }}
                         {% if form.telefone.errors %}
-                            <div class="text-danger small">{{ form.telefone.errors.0 }}</div>
+                        <div class="text-danger small">{{ form.telefone.errors.0 }}</div>
                         {% endif %}
                     </div>
                 </div>
@@ -55,18 +58,62 @@
         </div>
     </div>
 
+    <!-- Formulário de alteração de senha -->
+    <div class="card shadow mb-4">
+        <div class="card-body">
+            <h5 class="mb-3">Alterar Senha</h5>
+            <form method="post" novalidate>
+                {% csrf_token %}
+
+                <div class="form-group row">
+                    <div class="col-md-6">
+                        <label for="id_old_password">Senha atual</label>
+                        {{ senha_form.old_password }}
+                        {% if senha_form.old_password.errors %}
+                        <div class="text-danger small">{{ senha_form.old_password.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="form-group row">
+                    <div class="col-md-6">
+                        <label for="id_new_password1">Nova senha</label>
+                        {{ senha_form.new_password1 }}
+                        {% if senha_form.new_password1.errors %}
+                        <div class="text-danger small">{{ senha_form.new_password1.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+
+                    <div class="col-md-6">
+                        <label for="id_new_password2">Confirme a nova senha</label>
+                        {{ senha_form.new_password2 }}
+                        {% if senha_form.new_password2.errors %}
+                        <div class="text-danger small">{{ senha_form.new_password2.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <button type="submit" class="btn btn-success">Alterar Senha</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+
+    <!-- Telegram -->
     <div class="card shadow mb-4">
         <div class="card-body">
             <h5 class="mb-2">Telegram</h5>
             {% if request.user.telegram_chat_id %}
-                <p class="text-success">✅ Seu Telegram já está conectado.</p>
+            <p class="text-success">✅ Seu Telegram já está conectado.</p>
             {% else %}
-                <p>
-                    Para receber notificações no Telegram, clique no botão abaixo e envie <code>/start</code> ao bot:
-                </p>
-                <a href="https://t.me/Cronex_bot" target="_blank" class="btn btn-outline-primary">
-                    Conectar com o Telegram
-                </a>
+            <p>
+                Para receber notificações no Telegram, clique no botão abaixo e envie <code>/start</code> ao bot:
+            </p>
+            <a href="https://t.me/Cronex_bot" target="_blank" class="btn btn-outline-primary">
+                Conectar com o Telegram
+            </a>
             {% endif %}
         </div>
     </div>
@@ -75,12 +122,36 @@
 <script>
     document.addEventListener("DOMContentLoaded", function () {
         const telInput = document.getElementById("id_telefone");
+
+        function aplicarMascara(valor) {
+            valor = valor.replace(/\D/g, '').slice(0, 11);
+
+            if (valor.length >= 2 && valor.length <= 6) {
+                return `(${valor.slice(0, 2)}) ${valor.slice(2)}`;
+            } else if (valor.length > 6 && valor.length <= 10) {
+                return `(${valor.slice(0, 2)}) ${valor.slice(2, 6)}-${valor.slice(6)}`;
+            } else if (valor.length === 11) {
+                return `(${valor.slice(0, 2)}) ${valor.slice(2, 7)}-${valor.slice(7)}`;
+            }
+            return valor;
+        }
+
         if (telInput) {
+            // Aplica ao digitar
             telInput.addEventListener("input", function () {
-                this.value = this.value.replace(/\D/g, '');
+                this.value = aplicarMascara(this.value);
+            });
+
+            // Aplica ao carregar a página se já tiver valor
+            if (telInput.value) {
+                telInput.value = aplicarMascara(telInput.value);
+            }
+
+            // Limpa máscara antes de enviar
+            telInput.form.addEventListener("submit", function () {
+                telInput.value = telInput.value.replace(/\D/g, '').slice(0, 11);
             });
         }
     });
 </script>
-    
 {% endblock %}

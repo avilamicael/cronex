@@ -1,6 +1,7 @@
 from django import forms
 from .models import User
 import re
+from django.contrib.auth.forms import PasswordChangeForm as DjangoPasswordChangeForm
 
 class UsuarioConfigForm(forms.ModelForm):
     class Meta:
@@ -26,3 +27,20 @@ class UsuarioConfigForm(forms.ModelForm):
             if len(telefone) < 10 or len(telefone) > 11:
                 raise forms.ValidationError("Informe um telefone válido com DDD.")
         return telefone
+
+class UsuarioSenhaForm(DjangoPasswordChangeForm):
+    def __init__(self, *args, **kwargs):
+        super(UsuarioSenhaForm, self).__init__(*args, **kwargs)
+
+        self.fields['old_password'].widget.attrs.update({
+            'class': 'form-control',
+            'placeholder': 'Senha atual',
+        })
+        self.fields['new_password1'].widget.attrs.update({
+            'class': 'form-control',
+            'placeholder': 'Nova senha',
+        })
+        self.fields['new_password2'].widget.attrs.update({
+            'class': 'form-control',
+            'placeholder': 'Confirme a nova senha',
+        })
