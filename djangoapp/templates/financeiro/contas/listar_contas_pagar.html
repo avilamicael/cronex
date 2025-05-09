@@ -191,7 +191,7 @@
                         <span class="status-{{ conta.status }}">{{ conta.get_status_display }}</span>
                     </td>
                     <td>{{ conta.data_vencimento|date:"d/m/Y" }}</td>
-                    <td title="{{ conta.fornecedor }}">{{ conta.fornecedor|truncatechars:20 }}</td>
+                    <td title="{{ conta.fornecedor|default:'' }}">{{ conta.fornecedor|default:''|truncatechars:20 }}</td>
                     <td>{{ conta.transacao.nome }}</td>
                     <td>{{ conta.documento }}</td>
                     <td>{{ conta.valor_bruto|floatformat:2 }}</td>
