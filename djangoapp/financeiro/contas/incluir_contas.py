@@ -127,12 +127,19 @@ def _importar_csv(arquivo, request, empresa):
                 data_mov = datetime.strptime(linha['data_movimentacao'], '%d/%m/%Y').date()
                 data_venc = datetime.strptime(linha['data_vencimento'], '%d/%m/%Y').date()
 
-                # Limpeza de dados
+                # Limpeza de campos
                 cnpj_filial = re.sub(r'[^0-9]', '', linha.get('cnpj_filial', '')).strip()
                 nome_filial_csv = linha.get('nome_filial', '').strip() or cnpj_filial
-                codigo_barras = re.sub(r'[^0-9.]', '', linha.get('codigo_barras', ''))
+                fornecedor_cnpj = re.sub(r'[^0-9]', '', linha.get('fornecedor_cnpj', '')).strip()
+                fornecedor_nome = linha.get('fornecedor_nome', '').strip()
+                transacao_nome = linha.get('transacao', '').strip()
+                tipo_pagamento_nome = linha.get('tipo_pagamento', '').strip()
+                documento = linha.get('documento', '').strip()
+                descricao = linha.get('descricao', '').strip()
                 numero_notas = re.sub(r'[^0-9,]', '', linha.get('numero_notas', ''))
-                valor_bruto = Decimal(linha['valor_bruto'].replace(',', '.'))
+                codigo_barras = re.sub(r'[^0-9.]', '', linha.get('codigo_barras', ''))
+                valor_bruto_str = linha['valor_bruto'].replace('.', '').replace(',', '.')
+                valor_bruto = Decimal(valor_bruto_str)
 
                 # Buscar ou criar Filial
                 filial, _ = Filial.objects.get_or_create(
@@ -141,17 +148,29 @@ def _importar_csv(arquivo, request, empresa):
                     defaults={'nome': nome_filial_csv}
                 )
 
-                # Buscar ou criar Transação e Tipo de Pagamento
-                transacao, _ = Transacao.objects.get_or_create(nome=linha['transacao'], empresa=empresa)
-                tipo_pagamento, _ = TipoPagamento.objects.get_or_create(nome=linha['tipo_pagamento'], empresa=empresa)
+                # Buscar ou criar Transação (case insensitive)
+                transacao = Transacao.objects.filter(empresa=empresa, nome__iexact=transacao_nome).first()
+                if not transacao:
+                    transacao = Transacao.objects.create(empresa=empresa, nome=transacao_nome)
 
-                # Buscar ou criar Fornecedor
+                # Buscar ou criar Tipo de Pagamento (case insensitive)
+                tipo_pagamento = TipoPagamento.objects.filter(empresa=empresa, nome__iexact=tipo_pagamento_nome).first()
+                if not tipo_pagamento:
+                    tipo_pagamento = TipoPagamento.objects.create(empresa=empresa, nome=tipo_pagamento_nome)
+
+                # Buscar ou criar Fornecedor (baseado no CNPJ)
                 fornecedor = None
-                nome_fornecedor = linha.get('fornecedor', '').strip()
-                if nome_fornecedor:
+                if fornecedor_cnpj:
                     fornecedor, _ = Fornecedor.objects.get_or_create(
-                        nome=nome_fornecedor,
-                        empresa=empresa
+                        empresa=empresa,
+                        cnpj=fornecedor_cnpj,
+                        defaults={'nome': fornecedor_nome}
+                    )
+                elif fornecedor_nome:
+                    fornecedor, _ = Fornecedor.objects.get_or_create(
+                        empresa=empresa,
+                        nome=fornecedor_nome,
+                        defaults={'cnpj': ''}
                     )
 
                 # Criar Conta
@@ -161,11 +180,11 @@ def _importar_csv(arquivo, request, empresa):
                     transacao=transacao,
                     fornecedor=fornecedor,
                     tipo_pagamento=tipo_pagamento,
-                    documento=linha['documento'],
+                    documento=documento,
                     data_movimentacao=data_mov,
                     data_vencimento=data_venc,
                     valor_bruto=valor_bruto,
-                    descricao=linha.get('descricao', ''),
+                    descricao=descricao,
                     numero_notas=numero_notas,
                     codigo_barras=codigo_barras,
                     criado_por=request.user

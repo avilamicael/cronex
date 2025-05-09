@@ -1,6 +1,181 @@
-<h2>Login</h2>
-<form method="post">
-    {% csrf_token %}
-    {{ form.as_p }}
-    <button type="submit">Entrar</button>
-</form>
+{% load static %}
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Cronex - Login</title>
+    <link rel="icon" type="image/png" href="{% static 'img/cronex_no_bg.png' %}">
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- Bootstrap 4.6 -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Google Font -->
+    <link href="https://fonts.googleapis.com/css?family=Roboto:400,500&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --primary-color: #00D1D1;
+            --primary-color-dark: #00b2b2;
+            --bg-color: #0a0f10;
+        }
+
+        body, html {
+            height: 100%;
+            margin: 0;
+            font-family: 'Roboto', sans-serif;
+            background-color: var(--bg-color);
+            overflow: hidden;
+        }
+
+        .container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        .login-card {
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 15px;
+            padding: 40px;
+            width: 100%;
+            max-width: 400px;
+            z-index: 2;
+            text-align: center;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(6px);
+        }
+
+        .logo-img {
+            max-width: 140px;
+            margin-bottom: 30px;
+        }
+
+        .form-control {
+            background-color: #f9f9f9;
+            border: 1px solid #ccc;
+        }
+
+        .btn-login {
+            background-color: var(--primary-color);
+            color: white;
+            font-weight: bold;
+        }
+
+        .btn-login:hover {
+            background-color: var(--primary-color-dark);
+        }
+
+        .footer {
+            margin-top: 25px;
+            font-size: 12px;
+            color: #aaa;
+        }
+
+        #techCanvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        label {
+        color: #b7d7d7;
+        }
+
+    </style>
+</head>
+<body>
+<canvas id="techCanvas"></canvas>
+<div class="container">
+    <div class="login-card">
+
+        <!-- Logotipo -->
+        <img src="{% static 'img/cronex_login_logo.png' %}" alt="Cronex Logo" class="logo-img">
+
+        {% if form.errors %}
+            <div class="alert alert-danger">Usuário ou senha inválidos.</div>
+        {% endif %}
+
+        <form method="post" action="{% url 'login' %}">
+            {% csrf_token %}
+            <div class="form-group text-left">
+                <label for="id_username">Usuário</label>
+                <input type="text" name="username" class="form-control" id="id_username" required autofocus placeholder="Digite seu usuário">
+            </div>
+            <div class="form-group text-left">
+                <label for="id_password">Senha</label>
+                <input type="password" name="password" class="form-control" id="id_password" required placeholder="Digite sua senha">
+            </div>
+            <button type="submit" class="btn btn-login btn-block">Entrar</button>
+        </form>
+
+        <div class="footer">
+            Otimize seu tempo. Controle sua empresa com o Cronex.
+        </div>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('techCanvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    class Particle {
+        constructor() {
+            this.x = Math.random() * canvas.width;
+            this.y = Math.random() * canvas.height;
+            this.size = Math.random() * 2 + 1;
+            this.speedX = Math.random() * 3 - 1.5;
+            this.speedY = Math.random() * 3 - 1.5;
+        }
+        update() {
+            this.x += this.speedX;
+            this.y += this.speedY;
+            if (this.x > canvas.width) this.x = 0;
+            else if (this.x < 0) this.x = canvas.width;
+            if (this.y > canvas.height) this.y = 0;
+            else if (this.y < 0) this.y = canvas.height;
+        }
+        draw() {
+            ctx.fillStyle = 'rgba(0, 209, 209, 0.5)';
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    }
+
+    const particles = Array.from({ length: 100 }, () => new Particle());
+    function animate() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        particles.forEach(p => { p.update(); p.draw(); });
+        for (let i = 0; i < particles.length; i++) {
+            for (let j = i; j < particles.length; j++) {
+                const dx = particles[i].x - particles[j].x;
+                const dy = particles[i].y - particles[j].y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist < 100) {
+                    ctx.beginPath();
+                    ctx.strokeStyle = `rgba(0, 209, 209, ${1 - dist / 100})`;
+                    ctx.lineWidth = 0.5;
+                    ctx.moveTo(particles[i].x, particles[i].y);
+                    ctx.lineTo(particles[j].x, particles[j].y);
+                    ctx.stroke();
+                }
+            }
+        }
+        requestAnimationFrame(animate);
+    }
+    animate();
+
+    window.addEventListener('resize', () => {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+    });
+</script>
+</body>
+</html>

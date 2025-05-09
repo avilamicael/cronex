@@ -6,6 +6,8 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{% block title %}Cronex{% endblock %}</title>
+    <link rel="icon" type="image/png" href="{% static 'img/cronex_no_bg.png' %}">
+
 
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css?family=Nunito:200,300,400,600,700,800,900&display=swap"
@@ -39,7 +41,7 @@
             <!-- Sidebar - Brand -->
             <a class="sidebar-brand d-flex align-items-center justify-content-center" href="{% url 'dashboard' %}">
                 <div class="sidebar-brand-icon rotate-n-15">
-                    <img src="{% static 'img/cronex_favicon.png' %}" alt="Logo"
+                    <img src="{% static 'img/cronex_no_bg.png' %}" alt="Logo"
                         style="width: 40px; height: 40px;">
                 </div>
                 <div class="sidebar-brand-text mx-3">Cron <sup>Ex</sup></div>
