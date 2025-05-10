@@ -55,8 +55,8 @@
                 {% with conta=contas|index:forloop.counter0 %}
                 <tr>
                     <td><input type="checkbox" class="linha-check" checked></td>
-                    <td class="col-filial">{{ conta.filial.nome }}</td>
-                    <td class="col-fornecedor" title="{{ conta.fornecedor|default:'-' }}">{{ conta.fornecedor|default:'-'|truncatechars:20 }}</td>
+                    <td class="col-filial" title="{{ conta.filial.nome }}">{{ conta.filial.nome|default:""|truncatechars:20 }}</td>
+                    <td class="col-fornecedor" title="{{ conta.fornecedor|default:'' }}">{{ conta.fornecedor|default:''|truncatechars:20 }}</td>
                     <td class="col-documento">{{ conta.documento }}</td>
                     <td class="col-vencimento">{{ conta.data_vencimento|date:"d/m/Y" }}</td>
                 

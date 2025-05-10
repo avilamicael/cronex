@@ -30,9 +30,10 @@ class UserAdmin(BaseUserAdmin):
     list_display = (
         'username', 'email', 'first_name', 'last_name',
         'empresa', 'telefone', 'telegram_chat_id',
-        'nivel_acesso', 'ativo', 'is_staff',
+        'ativo', 'is_staff', 'receber_notificacoes_de_subordinados',
+        'tempo_antecedencia_minutos',
     )
-    list_filter = ('nivel_acesso', 'is_staff', 'ativo', 'empresa')
+    list_filter = ('is_staff', 'ativo', 'empresa')
     search_fields = ('username', 'email', 'first_name', 'last_name')
     ordering = ('username',)
 
@@ -49,13 +50,16 @@ class UserAdmin(BaseUserAdmin):
         ('Permissões', {
             'fields': (
                 'is_active', 'is_staff', 'is_superuser',
-                'groups', 'user_permissions', 'nivel_acesso',
+                'groups', 'user_permissions',
             )
         }),
         ('Datas Importantes', {
             'fields': ('last_login', 'date_joined'),
         }),
-        # você pode adicionar uma seção extra, se quiser
+        ('Notificações', {
+            'fields': ('receber_notificacoes_de_subordinados', 'tempo_antecedencia_minutos')
+        }),
+
     )
 
     add_fieldsets = (
@@ -65,7 +69,9 @@ class UserAdmin(BaseUserAdmin):
                 'username', 'email',
                 'first_name', 'last_name',
                 'empresa', 'telefone', 'telegram_chat_id',
-                'nivel_acesso', 'is_active', 'is_staff', 'is_superuser',
+                'receber_notificacoes_de_subordinados',
+                'tempo_antecedencia_minutos',
+                'is_active', 'is_staff', 'is_superuser',
                 'password1', 'password2',
             ),
         }),

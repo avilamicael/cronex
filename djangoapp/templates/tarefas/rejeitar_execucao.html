@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3 text-gray-800">Rejeitar Tarefa</h1>
+    <a href="{% url 'listar_tarefas' %}" class="btn btn-secondary">
+        <i class="fas fa-arrow-left"></i> Voltar
+    </a>
+</div>
+
+<div class="card shadow mb-4">
+    <div class="card-body">
+        <p><strong>Tarefa:</strong> {{ tarefa.titulo }}</p>
+        <p><strong>Responsável:</strong> {{ tarefa.responsavel.get_full_name }}</p>
+
+        <form method="post">
+            {% csrf_token %}
+            {{ form.as_p }}
+            <button type="submit" class="btn btn-danger">Rejeitar Execução</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

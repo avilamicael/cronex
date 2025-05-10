@@ -27,18 +27,11 @@ class User(AbstractUser):
     empresa = models.ForeignKey('Empresa', on_delete=models.CASCADE)
     telefone = models.CharField(max_length=20, blank=True, null=True)
     telegram_chat_id = models.CharField(max_length=50, blank=True, null=True)
-    nivel_acesso = models.CharField(
-        max_length=50,
-        choices=[
-            ('admin', 'Administrador'),
-            ('gerente', 'Gerente'),
-            ('colaborador', 'Colaborador'),
-        ],
-        default='colaborador'
-    )
     ativo = models.BooleanField(default=True)
+    receber_notificacoes_de_subordinados = models.BooleanField(default=False)
+    tempo_antecedencia_minutos = models.PositiveIntegerField(default=90, help_text="Minutos de antecedência para notificação de tarefas.")
 
     REQUIRED_FIELDS = ['email', 'first_name', 'last_name']
 
     def __str__(self):
-        return f"{self.username} - {self.empresa.nome}"
+        return f"{self.first_name} {self.last_name}"

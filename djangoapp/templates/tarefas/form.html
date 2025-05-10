@@ -1,0 +1,71 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card shadow mb-4">
+    <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-primary">Nova Tarefa</h6>
+    </div>
+    <div class="card-body">
+        <form method="post">
+            {% csrf_token %}
+        
+            <div class="form-group">
+                <label for="{{ form.titulo.id_for_label }}">Título</label>
+                {{ form.titulo }}
+            </div>
+        
+            <div class="form-group">
+                <label for="{{ form.descricao.id_for_label }}">Descrição</label>
+                {{ form.descricao }}
+            </div>
+        
+            <div class="form-row">
+                <div class="form-group col-md-3">
+                    <label for="{{ form.data.id_for_label }}">Data</label>
+                    {{ form.data }}
+                    <small class="form-text text-muted">Data limite para execução da tarefa.</small>
+                </div>
+                <div class="form-group col-md-3">
+                    <label for="{{ form.hora.id_for_label }}">Hora</label>
+                    {{ form.hora }}
+                    <small class="form-text text-muted">Horário final para conclusão da tarefa.</small>
+                </div>
+                <div class="form-group col-md-6">
+                    <label for="{{ form.responsavel.id_for_label }}">Responsável</label>
+                    {{ form.responsavel }}
+                    <small class="form-text text-muted">Selecione o responsável pela tarefa.</small>
+                </div>
+            </div>
+        
+            <button type="submit" class="btn btn-primary">Salvar</button>
+            <a href="{% url 'listar_tarefas' %}" class="btn btn-secondary">Cancelar</a>
+        </form>
+        <div class="alert alert-info mt-3" role="alert">
+            <strong>Atenção!</strong> A <strong>data</strong> e <strong>hora</strong> indicam o prazo final para conclusão da tarefa. Você será notificado caso o prazo esteja próximo ou seja ultrapassado.
+        </div>        
+    </div>
+</div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const dataInput = document.getElementById("id_data");
+        const horaInput = document.getElementById("id_hora");
+    
+        const agora = new Date();
+        const maisUmaHoraEMeia = new Date(agora.getTime() + 90 * 60000);
+    
+        // Preenche o campo de data
+        if (dataInput && !dataInput.value) {
+            const dataFormatada = maisUmaHoraEMeia.toISOString().split("T")[0];
+            dataInput.value = dataFormatada;
+        }
+    
+        // Preenche o campo de hora
+        if (horaInput && !horaInput.value) {
+            const horas = String(maisUmaHoraEMeia.getHours()).padStart(2, '0');
+            const minutos = String(maisUmaHoraEMeia.getMinutes()).padStart(2, '0');
+            horaInput.value = `${horas}:${minutos}`;
+        }
+    });
+</script>
+    
+{% endblock %}

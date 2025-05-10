@@ -1,0 +1,78 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="d-flex justify-content-between mb-4">
+    <h1 class="h3 text-gray-800">Tarefas</h1>
+    <a href="{% url 'criar_tarefa' %}" class="btn btn-primary"><i class="fas fa-plus"></i> Nova Tarefa</a>
+</div>
+
+<input type="hidden" id="csrf_token_input" value="{{ csrf_token }}">
+<table class="table table-bordered">
+    <thead class="thead-light">
+        <tr>
+            <th>Título</th>
+            <th>Responsável</th>
+            <th>Data Execução</th>
+            <th>Status</th>
+            <th>Última Ação</th>
+            <th>Ações</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for tarefa in tarefas %}
+        <tr data-tarefa-id="{{ tarefa.id }}">
+            <td>{{ tarefa.titulo }}</td>
+            <td>{{ tarefa.responsavel.get_full_name }}</td>
+            <td>{{ tarefa.data_execucao }}</td>
+            <td><span class="badge badge-secondary">{{ tarefa.get_status_display }}</span></td>
+            <td>
+                {% if tarefa.historico.last %}
+                    {{ tarefa.historico.last.observacao|default:"" }}
+                {% else %}
+                    -
+                {% endif %}
+            </td>                       
+            <td>
+                {% if tarefa.responsavel == user and tarefa.status == 'pendente' %}
+                    <a href="{% url 'finalizar_tarefa' tarefa.id %}" class="btn btn-sm btn-warning">Finalizar</a>
+                {% elif tarefa.responsavel == user and tarefa.status == 'rejeitado' %}
+                    <a href="{% url 'finalizar_tarefa' tarefa.id %}" class="btn btn-sm btn-warning">Corrigir e Finalizar</a>
+                {% endif %}
+            
+                {% if tarefa.criado_por == user and tarefa.status == 'finalizada' %}
+                    <a href="{% url 'validar_execucao' tarefa.id %}" class="btn btn-sm btn-success">Validar</a>
+                    <a href="{% url 'rejeitar_execucao' tarefa.id %}" class="btn btn-sm btn-danger">Rejeitar</a>
+                {% endif %}
+            
+                <a href="{% url 'historico_tarefa' tarefa.id %}" class="btn btn-sm btn-info">Histórico</a>
+            </td>                                    
+        </tr>        
+        {% empty %}
+        <tr>
+            <td colspan="5" class="text-center">Nenhuma tarefa encontrada.</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const csrftoken = '{{ csrf_token }}';
+    const tarefas = document.querySelectorAll("tr[data-tarefa-id]");
+
+    tarefas.forEach(el => {
+        const tarefaId = el.dataset.tarefaId;
+
+        fetch(`/tarefas/marcar-visualizado/${tarefaId}/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrftoken,
+                'Content-Type': 'application/json'
+            },
+        });
+    });
+});
+</script>
+{% endblock %}

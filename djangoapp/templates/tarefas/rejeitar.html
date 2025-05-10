@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+{% block content %}
+<h3>Rejeitar Tarefa</h3>
+<div class="card">
+    <div class="card-body">
+        <p><strong>Tarefa:</strong> {{ tarefa.titulo }}</p>
+        <form method="post">
+            {% csrf_token %}
+            {{ form.as_p }}
+            <button type="submit" class="btn btn-danger">Rejeitar</button>
+            <a href="{% url 'listar_tarefas' %}" class="btn btn-secondary">Cancelar</a>
+        </form>
+    </div>
+</div>
+{% endblock %}
