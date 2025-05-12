@@ -6,10 +6,11 @@ from accounts.models import User, Empresa
 
 class Tarefa(models.Model):
     STATUS_CHOICES = [
-        ('pendente', 'Pendente'),
-        ('executado', 'Executado pelo responsável'),
-        ('validado', 'Validado pelo criador'),
-        ('rejeitado', 'Rejeitado pelo criador'),
+        ('pendente', 'PENDENTE'),
+        ('executado', 'EXECUTADO PELO RESPONSÁVEL'),
+        ('validado', 'VALIDADO PELO RESPONSÁVEL'),
+        ('rejeitado', 'REJEITADO PELO RESPONSÁVEL'),
+        ('finalizado', 'FINALIZADO'),
     ]
 
     empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE)
@@ -26,6 +27,13 @@ class Tarefa(models.Model):
 
     def __str__(self):
         return self.titulo
+    
+    def save(self, *args, **kwargs):
+        if self.titulo:
+            self.titulo = self.titulo.upper()
+        if self.descricao:
+            self.descricao = self.descricao.upper()
+        super().save(*args, **kwargs)
 
 
 class HistoricoTarefa(models.Model):
@@ -37,3 +45,10 @@ class HistoricoTarefa(models.Model):
 
     def __str__(self):
         return f"{self.tarefa.titulo} - {self.acao}"
+    
+    def save(self, *args, **kwargs):
+        if self.acao:
+            self.acao = self.acao.upper()
+        if self.observacao:
+            self.observacao = self.observacao.upper()
+        super().save(*args, **kwargs)

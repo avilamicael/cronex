@@ -11,7 +11,7 @@
         <tr>
             <th>Título</th>
             <th>Responsável</th>
-            <th>Data Execução</th>
+            <th>Prazo para conclusão</th>
             <th>Status</th>
             <th>Última Ação</th>
             <th>Ações</th>
@@ -20,17 +20,33 @@
     <tbody>
         {% for tarefa in tarefas %}
         <tr data-tarefa-id="{{ tarefa.id }}">
-            <td>{{ tarefa.titulo }}</td>
+            <td title="{{ tarefa.titulo }}">{{ tarefa.titulo|truncatechars:30 }}</td>
+        
             <td>{{ tarefa.responsavel.get_full_name }}</td>
-            <td>{{ tarefa.data_execucao }}</td>
-            <td><span class="badge badge-secondary">{{ tarefa.get_status_display }}</span></td>
+        
+            <td>{{ tarefa.data_execucao|date:"d/m/Y H:i" }}</td>
+        
             <td>
-                {% if tarefa.historico.last %}
-                    {{ tarefa.historico.last.observacao|default:"" }}
-                {% else %}
-                    -
-                {% endif %}
-            </td>                       
+                <span class="
+                    badge 
+                    {% if tarefa.status == 'pendente' %}
+                        badge-warning
+                    {% elif tarefa.status == 'executado' %}
+                        badge-info
+                    {% elif tarefa.status == 'validado' %}
+                        badge-success
+                    {% elif tarefa.status == 'rejeitado' %}
+                        badge-danger
+                    {% else %}
+                        badge-secondary
+                    {% endif %}
+                ">
+                    {{ tarefa.get_status_display }}
+                </span>
+            </td>
+            <td>
+                {{ tarefa.ultima_acao_util.observacao|default:"-"|truncatechars:30 }}
+            </td>
             <td>
                 {% if tarefa.responsavel == user and tarefa.status == 'pendente' %}
                     <a href="{% url 'finalizar_tarefa' tarefa.id %}" class="btn btn-sm btn-warning">Finalizar</a>
@@ -38,14 +54,14 @@
                     <a href="{% url 'finalizar_tarefa' tarefa.id %}" class="btn btn-sm btn-warning">Corrigir e Finalizar</a>
                 {% endif %}
             
-                {% if tarefa.criado_por == user and tarefa.status == 'finalizada' %}
-                    <a href="{% url 'validar_execucao' tarefa.id %}" class="btn btn-sm btn-success">Validar</a>
+                {% if tarefa.criado_por == user and tarefa.status == 'executado' %}
+                    <a href="{% url 'validar_tarefa' tarefa.id %}" class="btn btn-sm btn-success">Validar</a>
                     <a href="{% url 'rejeitar_execucao' tarefa.id %}" class="btn btn-sm btn-danger">Rejeitar</a>
                 {% endif %}
             
                 <a href="{% url 'historico_tarefa' tarefa.id %}" class="btn btn-sm btn-info">Histórico</a>
-            </td>                                    
-        </tr>        
+            </td>
+        </tr>               
         {% empty %}
         <tr>
             <td colspan="5" class="text-center">Nenhuma tarefa encontrada.</td>

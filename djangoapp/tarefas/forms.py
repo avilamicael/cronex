@@ -15,16 +15,25 @@ class TarefaForm(forms.ModelForm):
         self.initial['data'] = daqui_uma_hora_e_meia.date()
         self.initial['hora'] = daqui_uma_hora_e_meia.time().replace(second=0, microsecond=0)
 
+        self.fields['titulo'].required = True
+        self.fields['descricao'].required = True
+        self.fields['responsavel'].required = True
+
+        # Adiciona asterisco nos labels obrigatórios
+        self.fields['titulo'].label = "Título *"
+        self.fields['descricao'].label = "Descrição *"
+        self.fields['responsavel'].label = "Responsável *"
+
         if user:
             self.fields['responsavel'].queryset = user.empresa.user_set.all()
             self.fields['responsavel'].initial = user
 
     data = forms.DateField(
-        label='Data',
+        label='Data de Execução *',
         widget=forms.DateInput(attrs={'type': 'date', 'class': 'form-control'})
     )
     hora = forms.TimeField(
-        label='Hora',
+        label='Hora de Execução *',
         widget=forms.TimeInput(attrs={'type': 'time', 'class': 'form-control'})
     )
 
@@ -37,6 +46,14 @@ class TarefaForm(forms.ModelForm):
             'responsavel': forms.Select(attrs={'class': 'form-control'}),
         }
 
+    def clean_titulo(self):
+        titulo = self.cleaned_data.get('titulo')
+        return titulo.upper() if titulo else titulo
+
+    def clean_descricao(self):
+        descricao = self.cleaned_data.get('descricao')
+        return descricao.upper() if descricao else descricao
+
     def save(self, commit=True):
         instance = super().save(commit=False)
         data = self.cleaned_data.get('data')
@@ -48,6 +65,7 @@ class TarefaForm(forms.ModelForm):
         if commit:
             instance.save()
         return instance
+
 
 class FinalizarTarefaForm(forms.Form):
     observacao = forms.CharField(

@@ -12,6 +12,12 @@ from django.http import JsonResponse
 def registrar_historico(tarefa, usuario, acao, obs=None):
     HistoricoTarefa.objects.create(tarefa=tarefa, usuario=usuario, acao=acao, observacao=obs)
 
+@login_required
+def historico_tarefa(request, tarefa_id):
+    tarefa = get_object_or_404(Tarefa, id=tarefa_id)
+    historico = tarefa.historico.order_by('-data')
+    return render(request, 'tarefas/historico.html', {'tarefa': tarefa, 'historico': historico})
+
 def is_gestor(user):
     return user.groups.filter(name__in=['Gestor', 'Administrador']).exists()
 
@@ -26,10 +32,8 @@ def listar_tarefas(request):
     user = request.user
 
     if is_administrador(user):
-        # Admin vê tudo da empresa
         tarefas = Tarefa.objects.filter(empresa=user.empresa)
     elif is_gestor(user):
-        # Gestor vê: suas tarefas + tarefas atribuídas a colaboradores da mesma empresa
         colaboradores = user.empresa.user_set.filter(groups__name='Colaborador')
         tarefas = Tarefa.objects.filter(
             empresa=user.empresa
@@ -39,7 +43,6 @@ def listar_tarefas(request):
             models.Q(criado_por=user)
         )
     else:
-        # Colaborador vê: tarefas atribuídas a ele ou criadas por ele
         tarefas = Tarefa.objects.filter(
             empresa=user.empresa
         ).filter(
@@ -48,6 +51,11 @@ def listar_tarefas(request):
         )
 
     tarefas = tarefas.order_by('-data_execucao')
+
+    for tarefa in tarefas:
+        ultima_acao_util = tarefa.historico.exclude(acao__iexact='VISUALIZADO').order_by('-data').first()
+        tarefa.ultima_acao_util = ultima_acao_util
+
     return render(request, 'tarefas/listar.html', {'tarefas': tarefas})
 
 @login_required
@@ -59,7 +67,7 @@ def criar_tarefa(request):
             tarefa.empresa = request.user.empresa
             tarefa.criado_por = request.user
             tarefa.save()
-            registrar_historico(tarefa, request.user, 'CRIOU')
+            registrar_historico(tarefa, request.user, 'criou', tarefa.descricao)
             messages.success(request, "Tarefa criada com sucesso.")
             return redirect('listar_tarefas')
     else:
@@ -77,11 +85,11 @@ def finalizar_tarefa(request, tarefa_id):
     if request.method == 'POST':
         form = FinalizarTarefaForm(request.POST)
         if form.is_valid():
-            tarefa.status = 'finalizada'
+            tarefa.status = 'executado'
             tarefa.data_finalizacao = timezone.now()
             tarefa.save()
-            registrar_historico(tarefa, request.user, 'FINALIZADA', form.cleaned_data['observacao'])
-            messages.success(request, "Tarefa finalizada com sucesso.")
+            registrar_historico(tarefa, request.user, 'executou', form.cleaned_data['observacao'])
+            messages.success(request, "Tarefa finalizada. Aguardando validação.")
             return redirect('listar_tarefas')
     else:
         form = FinalizarTarefaForm()
@@ -89,15 +97,17 @@ def finalizar_tarefa(request, tarefa_id):
     return render(request, 'tarefas/finalizar.html', {'tarefa': tarefa, 'form': form})
 
 @login_required
-@user_passes_test(is_gestor)
 def validar_tarefa(request, tarefa_id):
     tarefa = get_object_or_404(Tarefa, id=tarefa_id)
-    if request.user.is_staff:
-        tarefa.status = 'validada'
-        tarefa.data_validacao = timezone.now()
-        tarefa.save()
-        registrar_historico(tarefa, request.user, 'VALIDADA')
-        messages.success(request, "Tarefa validada.")
+    if request.user != tarefa.criado_por:
+        messages.error(request, "Apenas quem criou a tarefa pode validá-la.")
+        return redirect('listar_tarefas')
+
+    tarefa.status = 'validado'
+    tarefa.data_validacao = timezone.now()
+    tarefa.save()
+    registrar_historico(tarefa, request.user, 'validou')
+    messages.success(request, "Tarefa validada com sucesso.")
     return redirect('listar_tarefas')
 
 @login_required
@@ -111,7 +121,7 @@ def rejeitar_tarefa(request, tarefa_id):
     if request.method == 'POST':
         form = RejeitarTarefaForm(request.POST)
         if form.is_valid():
-            tarefa.status = 'REJEITADA'
+            tarefa.status = 'rejeitado'
             tarefa.save()
             registrar_historico(tarefa, request.user, 'rejeitou', form.cleaned_data['observacao'])
             messages.warning(request, "Tarefa rejeitada com observação.")
@@ -120,12 +130,6 @@ def rejeitar_tarefa(request, tarefa_id):
         form = RejeitarTarefaForm()
 
     return render(request, 'tarefas/rejeitar.html', {'form': form, 'tarefa': tarefa})
-
-@login_required
-def historico_tarefa(request, tarefa_id):
-    tarefa = get_object_or_404(Tarefa, id=tarefa_id)
-    historico = tarefa.historico.order_by('-data')
-    return render(request, 'tarefas/historico.html', {'tarefa': tarefa, 'historico': historico})
 
 @login_required
 def validar_execucao(request, tarefa_id):

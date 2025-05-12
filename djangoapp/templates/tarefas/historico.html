@@ -13,8 +13,8 @@
         <table class="table table-sm table-bordered">
             <thead class="thead-light">
                 <tr>
-                    <th>Ação</th>
                     <th>Usuário</th>
+                    <th>Ação</th>
                     <th>Data</th>
                     <th>Observação</th>
                 </tr>
@@ -22,7 +22,6 @@
             <tbody>
                 {% for h in historico %}
                 <tr>
-                    <td>{{ h.acao }}</td>
                     <td>
                         {% if h.usuario %}
                             {{ h.usuario.get_full_name }}
@@ -30,6 +29,7 @@
                             Sistema
                         {% endif %}
                     </td>
+                    <td>{{ h.acao }}</td>
                 <td>{{ h.data|date:"d/m/Y H:i" }}</td>
                     <td>{{ h.observacao|default:"-" }}</td>
                 </tr>
