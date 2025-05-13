@@ -91,6 +91,10 @@ def listar_contas_pagar(request):
     # Status
     status = request.GET.get('status')
 
+    # Força o filtro "à pagar" no primeiro acesso (sem nenhum filtro enviado)
+    if 'status' not in request.GET:
+        status = 'a_pagar'
+
     if status == 'a_pagar':
         contas = contas.filter(status__in=['a_vencer', 'vencida'])
     elif status:
@@ -114,6 +118,8 @@ def listar_contas_pagar(request):
     filtros['tipo_pagamento_ids'] = tipo_pagamento_ids
     filtros['tipo_pagamento_nomes'] = list(TipoPagamento.objects.filter(id__in=tipo_pagamento_ids).values_list('id', 'nome'))
 
+    filtros['status'] = status
+    
     # ---------- PAGINAÇÃO ----------
     page_size = int(request.GET.get("page_size", 25))         # default 25 linhas
     paginator = Paginator(contas, page_size)
