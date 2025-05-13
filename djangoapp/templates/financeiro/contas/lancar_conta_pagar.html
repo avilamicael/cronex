@@ -33,7 +33,7 @@
                                 <select class="form-control {% if form.filial.errors %}is-invalid{% endif %}" id="filial" name="filial" required>
                                     <option value="" disabled selected>Selecione a Filial</option>
                                     {% for filial in filiais %}
-                                        <option value="{{ filial.id }}" {% if form.filial.value == filial.id %}selected{% endif %}>{{ filial.nome }}</option>
+                                        <option value="{{ filial.id }}" {% if form.filial.value|stringformat:"s" == filial.id|stringformat:"s" %}selected{% endif %}>{{ filial.nome }}</option>
                                     {% endfor %}
                                 </select>
                                 {% if form.filial.errors %}
@@ -47,7 +47,7 @@
                                 <select class="form-control {% if form.transacao.errors %}is-invalid{% endif %}" id="transacao" name="transacao" required>
                                     <option value="" disabled selected>Selecione a Transação</option>
                                     {% for transacao in transacoes %}
-                                        <option value="{{ transacao.id }}" {% if form.transacao.value == transacao.id %}selected{% endif %}>{{ transacao.nome }}</option>
+                                        <option value="{{ tipo.id }}" {% if form.tipo_pagamento.value|stringformat:"s" == tipo.id|stringformat:"s" %}selected{% endif %}>{{ tipo.nome }}</option>
                                     {% endfor %}
                                 </select>
                                 {% if form.transacao.errors %}
@@ -57,9 +57,18 @@
                         
                             <!-- Fornecedor -->
                             <div class="col-md-3">
-                                <label for="fornecedor" class="col-form-label">Fornecedor</label>
-                                <select class="form-control" id="fornecedor" name="fornecedor" style="width: 100%"></select>
+                                <label for="fornecedor" class="col-form-label">Fornecedor</label><span class="text-danger"> *</span>
+                                <select class="form-control {% if form.fornecedor.errors %}is-invalid{% endif %}" id="fornecedor" name="fornecedor" required>
+                                    <option value="" disabled {% if not form.fornecedor.value %}selected{% endif %}>Selecione o Fornecedor</option>
+                                    {% for fornecedor in fornecedores %}
+                                        <option value="{{ fornecedor.id }}" {% if form.fornecedor.value == fornecedor.id %}selected{% endif %}>{{ fornecedor.nome }}</option>
+                                    {% endfor %}
+                                </select>
+                                {% if form.fornecedor.errors %}
+                                    <small class="form-text text-muted">{{ form.fornecedor.errors.0 }}</small>
+                                {% endif %}
                             </div>
+
                             
 
                             <!-- Tipo de Pagamento -->
@@ -68,7 +77,7 @@
                                 <select class="form-control {% if form.tipo_pagamento.errors %}is-invalid{% endif %}" id="tipo_pagamento" name="tipo_pagamento" required>
                                     <option value="" disabled selected>Selecione o Tipo de Pagamento</option>
                                     {% for tipo in tipos_pagamento %}
-                                        <option value="{{ tipo.id }}" {% if form.tipo_pagamento.value == tipo.id %}selected{% endif %}>{{ tipo.nome }}</option>
+                                        <option value="{{ tipo.id }}" {% if form.tipo_pagamento.value|stringformat:"s" == tipo.id|stringformat:"s" %}selected{% endif %}>{{ tipo.nome }}</option>
                                     {% endfor %}
                                 </select>
                                 {% if form.tipo_pagamento.errors %}
