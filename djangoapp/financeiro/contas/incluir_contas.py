@@ -172,11 +172,17 @@ def _importar_csv(arquivo, request, empresa):
                     if not fornecedor:
                         if not fornecedor_nome:
                             raise ValueError("Fornecedor com CNPJ informado mas nome vazio. Não é possível importar.")
-                        fornecedor = Fornecedor.objects.create(
-                            empresa=empresa,
-                            cnpj=fornecedor_cnpj,
-                            nome=fornecedor_nome
-                        )
+                        
+                        # ⚠ Verifica se já existe fornecedor com mesmo nome
+                        fornecedor_existente_por_nome = Fornecedor.objects.filter(empresa=empresa, nome__iexact=fornecedor_nome).first()
+                        if fornecedor_existente_por_nome:
+                            fornecedor = fornecedor_existente_por_nome  # Evita duplicação
+                        else:
+                            fornecedor = Fornecedor.objects.create(
+                                empresa=empresa,
+                                cnpj=fornecedor_cnpj,
+                                nome=fornecedor_nome
+                            )
                 elif fornecedor_nome:
                     fornecedor = Fornecedor.objects.filter(empresa=empresa, nome__iexact=fornecedor_nome).first()
                     if not fornecedor:
