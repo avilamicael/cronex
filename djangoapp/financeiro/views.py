@@ -119,7 +119,9 @@ def listar_contas_pagar(request):
     filtros['tipo_pagamento_nomes'] = list(TipoPagamento.objects.filter(id__in=tipo_pagamento_ids).values_list('id', 'nome'))
 
     filtros['status'] = status
-    
+
+    contas = contas.order_by('data_vencimento')
+
     # ---------- PAGINAÇÃO ----------
     page_size = int(request.GET.get("page_size", 25))         # default 25 linhas
     paginator = Paginator(contas, page_size)
