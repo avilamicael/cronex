@@ -112,11 +112,12 @@
                                         <label>Status</label>
                                         <select name="status" class="form-control">
                                             <option value="">Todos</option>
+                                            <option value="a_pagar" {% if filtros.status == 'a_pagar' %}selected{% endif %}>À Pagar</option>
                                             {% for key, val in contas.model.STATUS_CHOICES %}
                                                 <option value="{{ key }}" {% if filtros.status == key %}selected{% endif %}>{{ val }}</option>
                                             {% endfor %}
                                         </select>
-                                    </div>
+                                    </div>                                    
 
                                     <div class="col-md-3 mb-2 align-self-end">
                                         <button type="submit" class="btn btn-primary w-100">Filtrar</button>

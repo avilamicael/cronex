@@ -89,14 +89,14 @@ def listar_contas_pagar(request):
         contas = contas.filter(data_movimentacao__lte=movimentacao_ate)
 
     # Status
-    if 'status' in request.GET:
-        status = request.GET.get('status')
-        if status:
-            contas = contas.filter(status=status)
-        # se status for "", não aplica filtro (mostra todos)
-    else:
-        # filtro padrão só se o campo 'status' não estiver no GET (ex: carregamento inicial)
+    status = request.GET.get('status')
+
+    if status == 'a_pagar':
         contas = contas.filter(status__in=['a_vencer', 'vencida'])
+    elif status:
+        contas = contas.filter(status=status)
+    # se status estiver vazio ou não for passado, exibe todas
+
 
 
     # Preparar nomes para manter os selects carregados

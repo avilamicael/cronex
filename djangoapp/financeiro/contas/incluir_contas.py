@@ -164,20 +164,30 @@ def _importar_csv(arquivo, request, empresa):
                 if not tipo_pagamento:
                     tipo_pagamento = TipoPagamento.objects.create(empresa=empresa, nome=tipo_pagamento_nome)
 
-                # Buscar ou criar Fornecedor (baseado no CNPJ)
+                # Buscar ou criar Fornecedor com regras específicas
                 fornecedor = None
+
                 if fornecedor_cnpj:
-                    fornecedor, _ = Fornecedor.objects.get_or_create(
-                        empresa=empresa,
-                        cnpj=fornecedor_cnpj,
-                        defaults={'nome': fornecedor_nome}
-                    )
+                    fornecedor = Fornecedor.objects.filter(empresa=empresa, cnpj=fornecedor_cnpj).first()
+                    if not fornecedor:
+                        if not fornecedor_nome:
+                            raise ValueError("Fornecedor com CNPJ informado mas nome vazio. Não é possível importar.")
+                        fornecedor = Fornecedor.objects.create(
+                            empresa=empresa,
+                            cnpj=fornecedor_cnpj,
+                            nome=fornecedor_nome
+                        )
                 elif fornecedor_nome:
-                    fornecedor, _ = Fornecedor.objects.get_or_create(
-                        empresa=empresa,
-                        nome=fornecedor_nome,
-                        defaults={'cnpj': ''}
-                    )
+                    fornecedor = Fornecedor.objects.filter(empresa=empresa, nome__iexact=fornecedor_nome).first()
+                    if not fornecedor:
+                        fornecedor = Fornecedor.objects.create(
+                            empresa=empresa,
+                            nome=fornecedor_nome,
+                            cnpj=''
+                        )
+                else:
+                    raise ValueError("Linha inválida: fornecedor sem CNPJ e sem nome. Não é possível importar.")
+
 
                 # Criar Conta
                 conta = ContaPagar(
