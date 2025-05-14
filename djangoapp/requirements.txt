@@ -12,8 +12,10 @@ cron-descriptor==1.4.5
 Django==4.2.20
 django-celery-beat==2.8.0
 django-timezone-field==7.1
+et_xmlfile==2.0.0
 idna==3.10
 kombu==5.5.3
+openpyxl==3.1.5
 prompt_toolkit==3.0.51
 psycopg2-binary==2.9.10
 python-crontab==3.2.0
