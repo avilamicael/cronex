@@ -117,3 +117,19 @@
     border-radius: 4px;
     display: inline-block;
 }
+/* Linhas alternadas na tabela */
+.table-striped tbody tr:nth-of-type(odd) {
+    background-color: #f9f9f9;
+}
+
+/* Destaque ao passar o mouse */
+.table-hover tbody tr:hover {
+    background-color: #e9ecef;
+    transition: background-color 0.2s ease-in-out;
+}
+
+/* Bordas suaves nas células */
+.table td, .table th {
+    border-top: 1px solid #dee2e6;
+    vertical-align: middle;
+}
