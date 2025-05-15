@@ -3,6 +3,13 @@
 
 ## [0.0.1] - 2025-05-15
 ### Alterado
+- Ajustado um pouco a cor, deixado mais fraco
+
+# 📦 Changelog - Cronex
+
+
+## [0.0.1] - 2025-05-15
+### Alterado
 - Alterado a cor das linhas na listagem de contas a pagar
 
 # 📦 Changelog - Cronex
