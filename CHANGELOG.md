@@ -2,6 +2,13 @@
 
 
 ## [0.0.1] - 2025-05-15
+### Alterado
+- Alterado a cor das linhas na listagem de contas a pagar
+
+# 📦 Changelog - Cronex
+
+
+## [0.0.1] - 2025-05-15
 ### Corrigido
 - Ajustado campo fornecedor que estava buscando o primeiro fornecedor após um erro no formulario
 - Ajustado campo transacao que estava ficando vazio apósum erro no formulario
