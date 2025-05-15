@@ -4,6 +4,9 @@ gunicorn-error-log
 __localcode
 /data/
 
+release.py
+/release.py
+
 # Django #
 *.log
 *.pot

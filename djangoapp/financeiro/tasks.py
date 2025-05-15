@@ -6,9 +6,10 @@ from django.contrib.auth import get_user_model
 from django.db.models import Sum, Count
 from financeiro.models import ContaPagar
 from core.notificacoes import enviar_mensagem_telegram
+from collections import defaultdict
+from core.utils import formatar_brl
 
 User = get_user_model()
-
 
 @shared_task(name="Verificar contas vencidas")
 def notificar_contas_vencidas():
@@ -24,8 +25,8 @@ def notificar_contas_vencidas():
         if not contas.exists():
             continue
 
-        # Agrupar por filial e fornecedor
-        agrupadas = (
+        # Agrupamento por filial e fornecedor
+        dados_agrupados = (
             contas
             .values('filial__nome', 'fornecedor__nome')
             .annotate(
@@ -35,17 +36,34 @@ def notificar_contas_vencidas():
             .order_by('filial__nome', 'fornecedor__nome')
         )
 
-        mensagem = "🚨 <b>Contas Vencidas</b>\n"
-        for item in agrupadas:
+        # Organiza em um dicionário por filial
+        por_filial = defaultdict(list)
+        for item in dados_agrupados:
             filial = item['filial__nome'] or "Filial não informada"
             fornecedor = item['fornecedor__nome'] or "Fornecedor não informado"
-            valor_total = item['total'] or 0
+            total = item['total'] or 0
             quantidade = item['quantidade']
-            mensagem += f"• {filial} - {fornecedor} - R$ {valor_total:.2f} - {quantidade} conta(s)\n"
+            por_filial[filial].append((fornecedor, total, quantidade))
 
-        total_valor = contas.aggregate(total=Sum('valor_bruto'))['total'] or 0
-        mensagem += f"\n<b>Total de contas: {contas.count()}</b>"
-        mensagem += f"\n<b>Valor total: R$ {total_valor:.2f}</b>"
+        # Monta a mensagem
+        mensagem = "━━━━━━━━━━━━━━━━━━━━━━\n"
+        mensagem += f"📅 <b>{hoje.strftime('%d/%m/%Y')}</b>\n"
+        mensagem += "<b>Contas Vencidas</b>\n"        
+        mensagem += "━━━━━━━━━━━━━━━━━━━━━━\n"
+        for filial, fornecedores in por_filial.items():
+            mensagem += f"\n<b>{filial}</b>:\n"
+            total_filial = 0
+            qtd_filial = 0
+            for fornecedor, total, quantidade in fornecedores:
+                mensagem += f"• {fornecedor} - {formatar_brl(total)} - {quantidade} conta(s)\n"
+                total_filial += total
+                qtd_filial += quantidade
+            mensagem += f"➡️ <b>Total: {formatar_brl(total_filial)} ({qtd_filial} conta(s))</b>\n"
+
+
+        total_geral = contas.aggregate(total=Sum('valor_bruto'))['total'] or 0
+        mensagem += f"\n<b>Total geral: {contas.count()} conta(s)</b>"
+        mensagem += f"\n<b>Valor total: {formatar_brl(total_geral)}</b>"
 
         enviar_mensagem_telegram(user.telegram_chat_id, mensagem)
 
@@ -60,21 +78,48 @@ def notificar_contas_a_vencer():
             status='a_vencer',
             data_vencimento__gte=hoje,
             data_vencimento__lte=limite
-        ).order_by('data_vencimento')
+        )
 
         if not contas.exists():
             continue
 
-        total_valor = contas.aggregate(total=Sum('valor_bruto'))['total'] or 0
-
-        mensagem = f"📆 <b>Contas a vencer nos próximos 7 dias</b> \n"
-        for conta in contas:
-            mensagem += (
-                f"• {conta.filial.nome} - {conta.fornecedor.nome} - "
-                f"R$ {conta.valor_bruto} (vence em {conta.data_vencimento})\n"
+        # Agrupar por filial e fornecedor
+        dados_agrupados = (
+            contas
+            .values('filial__nome', 'fornecedor__nome')
+            .annotate(
+                total=Sum('valor_bruto'),
+                quantidade=Count('id')
             )
+            .order_by('filial__nome', 'fornecedor__nome')
+        )
 
-        mensagem += f"\n<b>Total de contas: {contas.count()}</b>"
-        mensagem += f"\n<b>Valor total: R$ {total_valor:.2f}</b>"
+        por_filial = defaultdict(list)
+        for item in dados_agrupados:
+            filial = item['filial__nome'] or "Filial não informada"
+            fornecedor = item['fornecedor__nome'] or "Fornecedor não informado"
+            total = item['total'] or 0
+            quantidade = item['quantidade']
+            por_filial[filial].append((fornecedor, total, quantidade))
+
+        # Montar a mensagem
+        mensagem = "━━━━━━━━━━━━━━━━━━━━━━\n"
+        mensagem += f"📅 <b>{hoje.strftime('%d/%m/%Y')}</b>\n"
+        mensagem += "<b>Contas a vencer nos próximos 7 dias</b>\n"
+        mensagem += "━━━━━━━━━━━━━━━━━━━━━━\n"
+
+        for filial, fornecedores in por_filial.items():
+            mensagem += f"\n<b>{filial}</b>:\n"
+            total_filial = 0
+            qtd_filial = 0
+            for fornecedor, total, quantidade in fornecedores:
+                mensagem += f"• {fornecedor} - {formatar_brl(total)} - {quantidade} conta(s)\n"
+                total_filial += total
+                qtd_filial += quantidade
+            mensagem += f"➡️ <b>Total: {formatar_brl(total_filial)} ({qtd_filial} conta(s))</b>\n"
+
+        total_geral = contas.aggregate(total=Sum('valor_bruto'))['total'] or 0
+        mensagem += f"\n<b>Total geral: {contas.count()} conta(s)</b>"
+        mensagem += f"\n<b>Valor total: {formatar_brl(total_geral)}</b>"
 
         enviar_mensagem_telegram(user.telegram_chat_id, mensagem)

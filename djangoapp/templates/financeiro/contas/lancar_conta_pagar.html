@@ -47,7 +47,7 @@
                                 <select class="form-control {% if form.transacao.errors %}is-invalid{% endif %}" id="transacao" name="transacao" required>
                                     <option value="" disabled selected>Selecione a Transação</option>
                                     {% for transacao in transacoes %}
-                                        <option value="{{ tipo.id }}" {% if form.tipo_pagamento.value|stringformat:"s" == tipo.id|stringformat:"s" %}selected{% endif %}>{{ tipo.nome }}</option>
+                                        <option value="{{ transacao.id }}" {% if form.transacao.value|stringformat:"s" == transacao.id|stringformat:"s" %}selected{% endif %}>{{ transacao.nome }}</option>
                                     {% endfor %}
                                 </select>
                                 {% if form.transacao.errors %}
@@ -61,7 +61,7 @@
                                 <select class="form-control {% if form.fornecedor.errors %}is-invalid{% endif %}" id="fornecedor" name="fornecedor">
                                     <option value="" disabled {% if not form.fornecedor.value %}selected{% endif %}>Selecione o Fornecedor</option>
                                     {% for fornecedor in fornecedores %}
-                                        <option value="{{ fornecedor.id }}" {% if form.fornecedor.value == fornecedor.id %}selected{% endif %}>{{ fornecedor.nome }}</option>
+                                        <option value="{{ fornecedor.id }}" {% if form.fornecedor.value|stringformat:"s" == fornecedor.id|stringformat:"s" %}selected{% endif %}>{{ fornecedor.nome }}</option>
                                     {% endfor %}
                                 </select>
                                 {% if form.fornecedor.errors %}
