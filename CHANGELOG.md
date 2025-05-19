@@ -1,6 +1,13 @@
 # 📦 Changelog - Cronex
 
 
+## [0.0.1] - 2025-05-19
+### Adicionado
+- Task para verificar o status da conta e atualizar com base no dia atual
+
+# 📦 Changelog - Cronex
+
+
 ## [0.0.1] - 2025-05-15
 ### Alterado
 - Ajustado um pouco a cor, deixado mais fraco

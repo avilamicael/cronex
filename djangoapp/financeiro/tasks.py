@@ -123,3 +123,10 @@ def notificar_contas_a_vencer():
         mensagem += f"\n<b>Valor total: {formatar_brl(total_geral)}</b>"
 
         enviar_mensagem_telegram(user.telegram_chat_id, mensagem)
+
+@shared_task(name="Atualizar status de contas vencidas")
+def atualizar_status_contas():
+    hoje = now().date()
+    contas_a_vencer = ContaPagar.objects.filter(status='a_vencer', data_vencimento__lt=hoje)
+    atualizadas = contas_a_vencer.update(status='vencida')
+    return f"{atualizadas} contas atualizadas para 'vencida'"

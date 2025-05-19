@@ -1,4 +1,5 @@
 {% load static %}
+{% load index %}
 <!DOCTYPE html>
 <html lang="pt-br">
 
@@ -56,12 +57,16 @@
             </div>
 
             <!-- Nav Item - Pages Collapse Menu -->
+            {% if request.user|pertence_ao_grupo:"Administrador" %}
             <li class="nav-item">
                 <a class="nav-link" href="{% url 'admin:index' %}">
                     <i class="fas fa-fw fa-user-shield"></i>
                     <span>Administração</span>
                 </a>
             </li>
+            {% endif %}
+
+            {% if request.user|pertence_ao_grupo:"Administrador" or request.user|pertence_ao_grupo:"Financeiro" %}
             <li class="nav-item {% if request.resolver_match.url_name == 'lancar_conta_pagar' or request.resolver_match.url_name == 'listar_contas_pagar' %}active{% endif %}">
                 <a class="nav-link" href="#" data-toggle="collapse" data-target="#collapsePages" aria-expanded="false"
                     aria-controls="collapsePages">
@@ -77,6 +82,7 @@
                     </div>
                 </div>
             </li>
+            {% endif %}
 
             <!-- Tarefas -->
             <li class="nav-item">
@@ -118,8 +124,8 @@
                 
                     <!-- Itens alinhados à direita -->
                     <ul class="navbar-nav ml-auto align-items-center">
-                
-                        <!-- Campo de seleção da filial -->
+
+                        {% if request.user|pertence_ao_grupo:"Administrador" or request.user|pertence_ao_grupo:"Financeiro" or request.user|pertence_ao_grupo:"Gestor" %}
                         <li class="nav-item">
                             <form method="post" action="{% url 'definir_filial_padrao' %}" class="form-inline my-2">
                                 {% csrf_token %}
@@ -133,7 +139,8 @@
                                 </select>
                             </form>
                         </li>
-                
+                        {% endif %}
+
                         <!-- Ícone do usuário -->
                         <li class="nav-item dropdown no-arrow">
                             <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button"

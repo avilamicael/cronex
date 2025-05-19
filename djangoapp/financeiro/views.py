@@ -6,7 +6,9 @@ from django.contrib.auth.decorators import login_required
 from .forms import ContaPagarForm
 from .models import Filial, Transacao, Fornecedor, TipoPagamento, ContaPagar
 from financeiro.contas.incluir_contas import _importar_csv, _importar_xml
+from core.decorators import grupos_necessarios
 
+@grupos_necessarios("Administrador", "Financeiro")
 @login_required
 def lancar_conta_pagar(request):
     empresa = request.user.empresa
@@ -45,6 +47,7 @@ def lancar_conta_pagar(request):
         'tipos_pagamento': tipos_pagamento,
     })
 
+@grupos_necessarios("Administrador", "Financeiro")
 @login_required
 def listar_contas_pagar(request):
     empresa = request.user.empresa
@@ -142,6 +145,7 @@ def listar_contas_pagar(request):
         "sizes": [10, 25, 50, 100],
     })
 
+@grupos_necessarios("Administrador", "Financeiro")
 @login_required
 def importar_contas_arquivo(request):
     empresa = request.user.empresa

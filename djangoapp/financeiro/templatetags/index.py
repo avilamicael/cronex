@@ -10,3 +10,7 @@ def index(sequence, position):
         return sequence[position]
     except (IndexError, TypeError):
         return ''
+
+@register.filter
+def pertence_ao_grupo(user, nome_grupo):
+    return user.groups.filter(name=nome_grupo).exists()
