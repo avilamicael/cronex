@@ -1,6 +1,7 @@
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.contrib import messages
 import os
+from decimal import Decimal
 from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
 from .forms import ContaPagarForm
@@ -167,8 +168,6 @@ def importar_contas_arquivo(request):
 @grupos_necessarios("Administrador", "Financeiro")
 @login_required
 def concilia_contas_view(request):
-    from decimal import Decimal
-
     if request.method == 'POST':
         form = ConciliacaoForm(request.POST, request.FILES)
         if form.is_valid():
@@ -177,7 +176,6 @@ def concilia_contas_view(request):
 
             contas_banco = processar_ofx(arquivo)
 
-            # Extrai mês/ano com base no primeiro lançamento do OFX
             mes = contas_banco[0]['data'].month
             ano = contas_banco[0]['data'].year
 
@@ -201,8 +199,9 @@ def concilia_contas_view(request):
                     valor_pgto = getattr(conta, 'valor_pago', conta.valor_bruto)
                     conta_valor = Decimal(valor_pgto)
                     conta_data = conta.data_pagamento
+                    nome_fornecedor = conta.fornecedor.nome if conta.fornecedor else "Fornecedor não definido"
 
-                    print(f" → [🧾 Sistema] {conta_data} | R$ {conta_valor} | {conta.fornecedor.nome}")
+                    print(f" → [🧾 Sistema] {conta_data} | R$ {conta_valor} | {nome_fornecedor}")
 
                     if (
                         abs(conta_valor - item_valor) < Decimal('0.01') and
