@@ -3,6 +3,13 @@
 
 ## [0.0.1] - 2025-06-03
 ### Alterado
+- Ajustado valores negativos do ofx
+
+# 📦 Changelog - Cronex
+
+
+## [0.0.1] - 2025-06-03
+### Alterado
 - Ajuste nas telas e na orma como é processado as contas
 
 # 📦 Changelog - Cronex
