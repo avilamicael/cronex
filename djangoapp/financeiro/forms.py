@@ -2,6 +2,7 @@ from django import forms
 from .models import ContaPagar, Fornecedor, TipoPagamento
 from django.utils.timezone import now
 from django.forms import modelformset_factory
+from .models import Filial
 
 class ContaPagarForm(forms.ModelForm):
     class Meta:
@@ -118,3 +119,13 @@ BaixaFormSet = modelformset_factory(
     form=BaixaContaPagarForm,
     extra=0,
 )
+
+class ConciliacaoForm(forms.Form):
+    filial = forms.ModelChoiceField(queryset=Filial.objects.all(), label='Filial')
+    arquivo = forms.FileField(label='Arquivo OFX', help_text='Selecione o arquivo .OFX')
+
+class ContaOFXForm(forms.Form):
+    fornecedor = forms.CharField()
+    valor = forms.DecimalField()
+    data_pagamento = forms.DateField()
+    descricao = forms.CharField(widget=forms.Textarea)

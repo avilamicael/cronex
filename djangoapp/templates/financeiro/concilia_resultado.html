@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Resultado da Conciliação</h2>
+
+<h4>Contas no Banco (OFX)</h4>
+<table class="table table-bordered">
+    <thead>
+        <tr>
+            <th>Data</th>
+            <th>Descrição</th>
+            <th>Valor</th>
+            <th>Status</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for conta in contas_banco %}
+        <tr>
+            <td>{{ conta.data|date:"d/m/Y" }}</td>
+            <td>{{ conta.descricao }}</td>
+            <td>R$ {{ conta.valor }}</td>
+            <td>
+                {% if not conta.conciliado %}
+                <span class="text-danger">Não encontrado</span>
+                <form method="post" action="#">
+                    {% csrf_token %}
+                    <input type="hidden" name="descricao" value="{{ conta.descricao }}">
+                    <input type="hidden" name="valor" value="{{ conta.valor }}">
+                    <input type="hidden" name="data_pagamento" value="{{ conta.data }}">
+                    <input type="hidden" name="filial_id" value="{{ filial.id }}">
+                    <button class="btn btn-sm btn-outline-success">Adicionar</button>
+                </form>
+                {% else %}
+                <span class="text-success">Conciliado</span>
+                {% endif %}
+            </td>
+
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

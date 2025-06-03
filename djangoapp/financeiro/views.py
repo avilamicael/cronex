@@ -7,6 +7,8 @@ from .forms import ContaPagarForm
 from .models import Filial, Transacao, Fornecedor, TipoPagamento, ContaPagar
 from financeiro.contas.incluir_contas import _importar_csv, _importar_xml
 from core.decorators import grupos_necessarios
+from .forms import ConciliacaoForm, ContaOFXForm
+from .utils import processar_ofx
 
 @grupos_necessarios("Administrador", "Financeiro")
 @login_required
@@ -161,3 +163,39 @@ def importar_contas_arquivo(request):
             else:
                 messages.error(request, f"Formato não suportado: {arquivo.name}")
     return redirect('lancar_conta_pagar')
+
+@grupos_necessarios("Administrador", "Financeiro")
+@login_required
+def concilia_contas_view(request):
+    if request.method == 'POST':
+        form = ConciliacaoForm(request.POST, request.FILES)
+        if form.is_valid():
+            filial = form.cleaned_data['filial']
+            arquivo = form.cleaned_data['arquivo']
+
+            contas_banco = processar_ofx(arquivo)
+            contas_sistema = ContaPagar.objects.filter(
+                filial=filial,
+                status='pago',
+                data_pagamento__month=contas_banco[0]['data'].month,
+                data_pagamento__year=contas_banco[0]['data'].year
+            )
+
+            # Marcar cada item do OFX como conciliado ou não
+            conciliadas = []
+            for item in contas_banco:
+                item_conciliado = any(
+                    abs(c.valor_bruto - item['valor']) < 0.01 and
+                    c.data_pagamento == item['data']
+                    for c in contas_sistema
+                )
+                item['conciliado'] = item_conciliado
+            return render(request, 'financeiro/concilia_resultado.html', {
+                'contas_banco': contas_banco,
+                'filial': filial
+            })
+
+    else:
+        form = ConciliacaoForm()
+
+    return render(request, 'financeiro/concilia_form.html', {'form': form})

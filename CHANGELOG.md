@@ -1,6 +1,13 @@
 # 📦 Changelog - Cronex
 
 
+## [0.1.0] - 2025-06-03
+### Adicionado
+- Adicionado esboco para conciliacao de contas com arquivo ofx
+
+# 📦 Changelog - Cronex
+
+
 ## [0.0.1] - 2025-05-19
 ### Adicionado
 - Task para verificar o status da conta e atualizar com base no dia atual

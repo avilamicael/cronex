@@ -10,4 +10,8 @@ urlpatterns = [
 
     path('autocomplete/<str:model_name>/', generic_autocomplete, name='generic_autocomplete'),
 
+    path('concilia-contas/', views.concilia_contas_view, name='concilia_contas'),
+    # path('concilia-contas/validar/', views.validar_ofx, name='validar_ofx'),
+    # path('concilia-contas/incluir/', views.incluir_conta_ofx, name='incluir_conta_ofx'),
+
 ]
