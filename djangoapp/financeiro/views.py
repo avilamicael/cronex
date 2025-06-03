@@ -174,25 +174,37 @@ def concilia_contas_view(request):
             arquivo = form.cleaned_data['arquivo']
 
             contas_banco = processar_ofx(arquivo)
+
+            # Mês do OFX (usando primeiro item)
+            mes = contas_banco[0]['data'].month
+            ano = contas_banco[0]['data'].year
+
             contas_sistema = ContaPagar.objects.filter(
                 filial=filial,
                 status='pago',
-                data_pagamento__month=contas_banco[0]['data'].month,
-                data_pagamento__year=contas_banco[0]['data'].year
+                data_pagamento__month=mes,
+                data_pagamento__year=ano
             )
 
-            # Marcar cada item do OFX como conciliado ou não
-            conciliadas = []
+            contas_usadas = set()
+
             for item in contas_banco:
-                item_conciliado = any(
-                    abs(c.valor_bruto - item['valor']) < 0.01 and
-                    c.data_pagamento == item['data']
-                    for c in contas_sistema
-                )
-                item['conciliado'] = item_conciliado
+                item['conciliado'] = False
+                for conta in contas_sistema:
+                    valor_pgto = getattr(conta, 'valor_pago', conta.valor_bruto)
+                    if (
+                        abs(valor_pgto - item['valor']) < 0.01 and
+                        conta.data_pagamento == item['data'] and
+                        conta.id not in contas_usadas
+                    ):
+                        item['conciliado'] = True
+                        contas_usadas.add(conta.id)
+                        break
+
             return render(request, 'financeiro/concilia_resultado.html', {
                 'contas_banco': contas_banco,
-                'filial': filial
+                'filial': filial,
+                'contas_nao_conciliadas': contas_sistema.exclude(id__in=contas_usadas),
             })
 
     else:

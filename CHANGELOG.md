@@ -1,6 +1,13 @@
 # 📦 Changelog - Cronex
 
 
+## [0.0.1] - 2025-06-03
+### Alterado
+- Ajuste nas telas e na orma como é processado as contas
+
+# 📦 Changelog - Cronex
+
+
 ## [0.1.0] - 2025-06-03
 ### Adicionado
 - Adicionado esboco para conciliacao de contas com arquivo ofx

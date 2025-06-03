@@ -1,41 +1,101 @@
-{% extends 'base.html' %}
+{% extends "base.html" %}
+{% block title %}Resultado da Conciliação{% endblock %}
 {% block content %}
-<h2>Resultado da Conciliação</h2>
 
-<h4>Contas no Banco (OFX)</h4>
-<table class="table table-bordered">
-    <thead>
-        <tr>
-            <th>Data</th>
-            <th>Descrição</th>
-            <th>Valor</th>
-            <th>Status</th>
-        </tr>
+<h2 class="mb-4"><i class="fas fa-exchange-alt mr-2"></i> Resultado da Conciliação</h2>
+
+<!-- Contas conciliadas -->
+<div class="mb-5">
+  <h4 class="h5 font-weight-bold text-success">✔ Contas conciliadas</h4>
+  <table class="table table-sm table-bordered">
+    <thead class="thead-light">
+      <tr>
+        <th>Data</th>
+        <th>Descrição</th>
+        <th>Valor</th>
+      </tr>
     </thead>
     <tbody>
-        {% for conta in contas_banco %}
-        <tr>
-            <td>{{ conta.data|date:"d/m/Y" }}</td>
-            <td>{{ conta.descricao }}</td>
-            <td>R$ {{ conta.valor }}</td>
-            <td>
-                {% if not conta.conciliado %}
-                <span class="text-danger">Não encontrado</span>
-                <form method="post" action="#">
-                    {% csrf_token %}
-                    <input type="hidden" name="descricao" value="{{ conta.descricao }}">
-                    <input type="hidden" name="valor" value="{{ conta.valor }}">
-                    <input type="hidden" name="data_pagamento" value="{{ conta.data }}">
-                    <input type="hidden" name="filial_id" value="{{ filial.id }}">
-                    <button class="btn btn-sm btn-outline-success">Adicionar</button>
-                </form>
-                {% else %}
-                <span class="text-success">Conciliado</span>
-                {% endif %}
-            </td>
-
+      {% for conta in contas_banco %}
+        {% if conta.conciliado %}
+        <tr class="table-success">
+          <td>{{ conta.data|date:"d/m/Y" }}</td>
+          <td>{{ conta.descricao }}</td>
+          <td>R$ {{ conta.valor|floatformat:2 }}</td>
         </tr>
-        {% endfor %}
+        {% endif %}
+      {% endfor %}
     </tbody>
-</table>
+  </table>
+</div>
+
+<!-- Contas no banco que não constam no sistema -->
+<div class="mb-5">
+  <h4 class="h5 font-weight-bold text-danger">⚠️ Contas encontradas no banco, mas não no sistema</h4>
+  <table class="table table-sm table-bordered">
+    <thead class="thead-light">
+      <tr>
+        <th>Data</th>
+        <th>Descrição</th>
+        <th>Valor</th>
+        <th>Ação</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for conta in contas_banco %}
+        {% if not conta.conciliado %}
+        <tr class="table-warning">
+          <td>{{ conta.data|date:"d/m/Y" }}</td>
+          <td>{{ conta.descricao }}</td>
+          <td>R$ {{ conta.valor|floatformat:2 }}</td>
+          <td>
+            <form method="post" action="#">
+              {% csrf_token %}
+              <input type="hidden" name="descricao" value="{{ conta.descricao }}">
+              <input type="hidden" name="valor" value="{{ conta.valor }}">
+              <input type="hidden" name="data_pagamento" value="{{ conta.data|date:'Y-m-d' }}">
+              <input type="hidden" name="filial_id" value="{{ filial.id }}">
+              <button class="btn btn-sm btn-outline-primary" type="submit">
+                <i class="fas fa-plus-circle"></i> Incluir
+              </button>
+            </form>
+          </td>
+        </tr>
+        {% endif %}
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- Contas no sistema que não constam no banco -->
+<div class="mb-5">
+  <h4 class="h5 font-weight-bold text-warning">⚠️ Contas pagas no sistema não encontradas no banco</h4>
+  <table class="table table-sm table-bordered">
+    <thead class="thead-light">
+      <tr>
+        <th>Data Pagamento</th>
+        <th>Documento</th>
+        <th>Fornecedor</th>
+        <th>Valor</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for conta in contas_nao_conciliadas %}
+      <tr>
+        <td>{{ conta.data_pagamento|date:"d/m/Y" }}</td>
+        <td>{{ conta.documento }}</td>
+        <td>{{ conta.fornecedor.nome }}</td>
+        <td>R$ {{ conta.valor_bruto|floatformat:2 }}</td>
+      </tr>
+      {% empty %}
+      <tr>
+        <td colspan="4">Nenhuma conta divergente encontrada.</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<a href="#" class="btn btn-secondary"><i class="fas fa-arrow-left"></i> Nova Conciliação</a>
+
 {% endblock %}
