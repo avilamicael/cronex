@@ -167,6 +167,8 @@ def importar_contas_arquivo(request):
 @grupos_necessarios("Administrador", "Financeiro")
 @login_required
 def concilia_contas_view(request):
+    from decimal import Decimal
+
     if request.method == 'POST':
         form = ConciliacaoForm(request.POST, request.FILES)
         if form.is_valid():
@@ -175,7 +177,7 @@ def concilia_contas_view(request):
 
             contas_banco = processar_ofx(arquivo)
 
-            # Mês do OFX (usando primeiro item)
+            # Extrai mês/ano com base no primeiro lançamento do OFX
             mes = contas_banco[0]['data'].month
             ano = contas_banco[0]['data'].year
 
@@ -190,21 +192,37 @@ def concilia_contas_view(request):
 
             for item in contas_banco:
                 item['conciliado'] = False
+                item_valor = Decimal(item['valor'])
+                item_data = item['data'].date() if hasattr(item['data'], 'date') else item['data']
+
+                print(f"\n[🔍 Banco] {item_data} | R$ {item_valor} | {item['descricao']}")
+
                 for conta in contas_sistema:
                     valor_pgto = getattr(conta, 'valor_pago', conta.valor_bruto)
+                    conta_valor = Decimal(valor_pgto)
+                    conta_data = conta.data_pagamento
+
+                    print(f" → [🧾 Sistema] {conta_data} | R$ {conta_valor} | {conta.fornecedor.nome}")
+
                     if (
-                        abs(valor_pgto - item['valor']) < 0.01 and
-                        conta.data_pagamento == item['data'] and
+                        abs(conta_valor - item_valor) < Decimal('0.01') and
+                        conta_data == item_data and
                         conta.id not in contas_usadas
                     ):
                         item['conciliado'] = True
                         contas_usadas.add(conta.id)
+                        print(" ✅ Conciliado")
                         break
+
+                if not item['conciliado']:
+                    print(" ❌ Não conciliado")
+
+            contas_nao_conciliadas = contas_sistema.exclude(id__in=contas_usadas)
 
             return render(request, 'financeiro/concilia_resultado.html', {
                 'contas_banco': contas_banco,
-                'filial': filial,
-                'contas_nao_conciliadas': contas_sistema.exclude(id__in=contas_usadas),
+                'contas_nao_conciliadas': contas_nao_conciliadas,
+                'filial': filial
             })
 
     else:
