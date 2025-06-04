@@ -1,6 +1,13 @@
 # 📦 Changelog - Cronex
 
 
+## [0.0.1] - 2025-06-04
+### Alterado
+- ajustado a utilizacao do valor pago ao inves do valor bruto
+
+# 📦 Changelog - Cronex
+
+
 ## [0.0.1] - 2025-06-03
 ### Alterado
 - ajustado debugs

@@ -196,7 +196,7 @@ def concilia_contas_view(request):
                 print(f"\n[🔍 Banco] {item_data} | R$ {item_valor} | {item['descricao']}")
 
                 for conta in contas_sistema:
-                    valor_pgto = getattr(conta, 'valor_pago', conta.valor_bruto)
+                    valor_pgto = conta.valor_pago if conta.valor_pago is not None else conta.valor_bruto
                     conta_valor = Decimal(valor_pgto)
                     conta_data = conta.data_pagamento
                     nome_fornecedor = conta.fornecedor.nome if conta.fornecedor else "Fornecedor não definido"
