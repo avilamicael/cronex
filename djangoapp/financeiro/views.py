@@ -1,5 +1,6 @@
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.contrib import messages
+from django.views.decorators.http import require_POST
 import os
 from decimal import Decimal
 from django.shortcuts import render, redirect
@@ -193,15 +194,10 @@ def concilia_contas_view(request):
                 item_valor = Decimal(item['valor'])
                 item_data = item['data'].date() if hasattr(item['data'], 'date') else item['data']
 
-                print(f"\n[🔍 Banco] {item_data} | R$ {item_valor} | {item['descricao']}")
-
                 for conta in contas_sistema:
                     valor_pgto = conta.valor_pago if conta.valor_pago is not None else conta.valor_bruto
                     conta_valor = Decimal(valor_pgto)
                     conta_data = conta.data_pagamento
-                    nome_fornecedor = conta.fornecedor.nome if conta.fornecedor else "Fornecedor não definido"
-
-                    print(f" → [🧾 Sistema] {conta_data} | R$ {conta_valor} | {nome_fornecedor}")
 
                     if (
                         abs(conta_valor - item_valor) < Decimal('0.01') and
@@ -210,11 +206,7 @@ def concilia_contas_view(request):
                     ):
                         item['conciliado'] = True
                         contas_usadas.add(conta.id)
-                        print(" ✅ Conciliado")
                         break
-
-                if not item['conciliado']:
-                    print(" ❌ Não conciliado")
 
             contas_nao_conciliadas = contas_sistema.exclude(id__in=contas_usadas)
 
@@ -228,3 +220,23 @@ def concilia_contas_view(request):
         form = ConciliacaoForm()
 
     return render(request, 'financeiro/concilia_form.html', {'form': form})
+
+@require_POST
+@login_required
+@grupos_necessarios("Administrador", "Financeiro")
+def incluir_conta_conciliacao(request):
+    descricao = request.POST.get("descricao")
+    valor = request.POST.get("valor").replace(',', '.')
+    data_pagamento = request.POST.get("data_pagamento")
+    filial_id = request.POST.get("filial_id")
+
+    ContaPagar.objects.create(
+        descricao=descricao,
+        valor_bruto=Decimal(valor),
+        data_pagamento=data_pagamento,
+        status="pago",
+        filial=Filial.objects.get(id=filial_id)
+    )
+
+    messages.success(request, "Conta adicionada com sucesso!")
+    return redirect("concilia_contas")  # Redireciona de volta à página de conciliação

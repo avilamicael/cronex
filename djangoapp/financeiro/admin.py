@@ -29,9 +29,9 @@ class TipoPagamentoAdmin(admin.ModelAdmin):
 
 @admin.register(ContaPagar)
 class ContaPagarAdmin(admin.ModelAdmin):
-    list_display = ['transacao', 'valor_bruto', 'data_vencimento', 'status', 'fornecedor']
+    list_display = ['transacao', 'valor_bruto', 'valor_pago', 'data_pagamento', 'data_vencimento', 'status', 'fornecedor']
     list_filter = ['empresa', 'status', 'data_vencimento', 'tipo_pagamento']
-    search_fields = ['documento', 'descricao', 'numero_notas', 'codigo_barras']
+    search_fields = ['documento', 'transacao__nome', 'numero_notas', 'fornecedor__nome', 'tipo_pagamento__nome', 'data_pagamento', 'valor_bruto', 'valor_pago']
     date_hierarchy = 'data_vencimento'
     readonly_fields = ['valor_saldo', 'data_criacao', 'data_atualizacao', 'criado_por']
     actions = ['exportar_excel']

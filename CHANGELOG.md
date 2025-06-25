@@ -1,6 +1,14 @@
 # 📦 Changelog - Cronex
 
 
+## [0.0.1] - 2025-06-25
+### Adicionado
+- valor pago e data de pagamento como coluna no contas a pagar no admin
+- mais campos para pesquisa no contas a pagar no admin
+
+# 📦 Changelog - Cronex
+
+
 ## [0.0.1] - 2025-06-04
 ### Alterado
 - ajustado a utilizacao do valor pago ao inves do valor bruto
