@@ -42,6 +42,8 @@ class ContaPagarAdmin(admin.ModelAdmin):
     readonly_fields = ['valor_saldo', 'data_criacao', 'data_atualizacao', 'criado_por']
     actions = ['exportar_excel']
 
+    change_list_template = "admin/contas_pagar_changelist.html"
+
     fieldsets = (
         ('Informações Básicas', {
             'fields': ('empresa', 'filial', 'transacao', 'fornecedor', 'tipo_pagamento')
@@ -68,12 +70,14 @@ class ContaPagarAdmin(admin.ModelAdmin):
             obj.criado_por = request.user
         super().save_model(request, obj, form, change)
 
+    # --------------------
+    # EXPORTAÇÃO
+    # --------------------
     def exportar_excel(self, request, queryset):
         wb = openpyxl.Workbook()
         ws = wb.active
         ws.title = "Contas a Pagar"
 
-        # Cabeçalhos
         headers = [
             'Filial', 'Transação', 'Fornecedor', 'Tipo de Pagamento', 'Documento',
             'Descrição', 'Nº Notas', 'Código de Barras', 'Data Movimentação',
@@ -114,17 +118,9 @@ class ContaPagarAdmin(admin.ModelAdmin):
 
     exportar_excel.short_description = "Exportar selecionadas para Excel"
 
-@admin.register(ContaPagar)
-class ContaPagarAdmin(admin.ModelAdmin):
-    list_display = [...]
-    list_filter = [...]
-    search_fields = [...]
-    date_hierarchy = 'data_vencimento'
-    readonly_fields = [...]
-    actions = ['exportar_excel']
-
-    change_list_template = "admin/contas_pagar_changelist.html"  # vamos criar esse template
-
+    # --------------------
+    # IMPORTAÇÃO
+    # --------------------
     def get_urls(self):
         urls = super().get_urls()
         custom_urls = [
@@ -140,7 +136,6 @@ class ContaPagarAdmin(admin.ModelAdmin):
                 wb = openpyxl.load_workbook(arquivo)
                 ws = wb.active
 
-                # Pular cabeçalho
                 for row in ws.iter_rows(min_row=2, values_only=True):
                     filial_nome, transacao_nome, fornecedor_nome, tipo_pagamento_nome, documento, descricao, numero_notas, codigo_barras, data_mov, data_venc, data_pag, valor_bruto, juros, multa, outros, desconto, valor_pago, saldo, status = row
 
@@ -153,7 +148,7 @@ class ContaPagarAdmin(admin.ModelAdmin):
                     if fornecedor_nome:
                         fornecedor, _ = Fornecedor.objects.get_or_create(empresa=empresa, nome=str(fornecedor_nome).upper())
 
-                    conta = ContaPagar(
+                    ContaPagar.objects.create(
                         empresa=empresa,
                         filial=filial,
                         transacao=transacao,
@@ -176,7 +171,6 @@ class ContaPagarAdmin(admin.ModelAdmin):
                         status=self.map_status(status),
                         criado_por=request.user,
                     )
-                    conta.save()
 
                 self.message_user(request, "Importação concluída com sucesso!", level=messages.SUCCESS)
                 return redirect("..")
