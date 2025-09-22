@@ -137,7 +137,15 @@ class ContaPagarAdmin(admin.ModelAdmin):
                 ws = wb.active
 
                 for row in ws.iter_rows(min_row=2, values_only=True):
-                    filial_nome, transacao_nome, fornecedor_nome, tipo_pagamento_nome, documento, descricao, numero_notas, codigo_barras, data_mov, data_venc, data_pag, valor_bruto, juros, multa, outros, desconto, valor_pago, saldo, status = row
+                    if not any(row):  # pula linha totalmente em branco
+                        continue
+
+                    (
+                        filial_nome, transacao_nome, fornecedor_nome, tipo_pagamento_nome,
+                        documento, descricao, numero_notas, codigo_barras,
+                        data_mov, data_venc, data_pag, valor_bruto,
+                        juros, multa, outros, desconto, valor_pago, saldo, status
+                    ) = row[:19]  # garante que estamos pegando apenas as 19 colunas esperadas
 
                     empresa = Empresa.objects.first()
 
@@ -147,6 +155,21 @@ class ContaPagarAdmin(admin.ModelAdmin):
                     fornecedor = None
                     if fornecedor_nome:
                         fornecedor, _ = Fornecedor.objects.get_or_create(empresa=empresa, nome=str(fornecedor_nome).upper())
+
+                    # Função local para converter datas
+                    def parse_data(valor):
+                        if not valor:
+                            return None
+                        if isinstance(valor, datetime):
+                            return valor.date()
+                        try:
+                            return datetime.strptime(str(valor), "%d/%m/%Y").date()
+                        except:
+                            return None
+
+                    data_venc = parse_data(data_venc)
+                    data_mov = parse_data(data_mov) or data_venc  # se data_mov estiver vazia, usa data_venc
+                    data_pag = parse_data(data_pag)
 
                     ContaPagar.objects.create(
                         empresa=empresa,
@@ -158,9 +181,9 @@ class ContaPagarAdmin(admin.ModelAdmin):
                         descricao=str(descricao).upper() if descricao else "",
                         numero_notas=str(numero_notas) if numero_notas else "",
                         codigo_barras=str(codigo_barras) if codigo_barras else "",
-                        data_movimentacao=self.parse_data(data_mov),
-                        data_vencimento=self.parse_data(data_venc),
-                        data_pagamento=self.parse_data(data_pag) if data_pag else None,
+                        data_movimentacao=data_mov,
+                        data_vencimento=data_venc,
+                        data_pagamento=data_pag,
                         valor_bruto=valor_bruto or 0,
                         valor_juros=juros or 0,
                         valor_multa=multa or 0,
@@ -183,6 +206,7 @@ class ContaPagarAdmin(admin.ModelAdmin):
             title="Importar Contas a Pagar",
         )
         return render(request, "admin/importar_contas_pagar.html", context)
+
 
     def parse_data(self, valor):
         if not valor:
