@@ -1,7 +1,13 @@
 from django.contrib import admin
 from .models import ContaPagar, Filial, Transacao, Fornecedor, TipoPagamento
+from accounts.models import Empresa 
 import openpyxl
 from django.http import HttpResponse
+from datetime import datetime
+from django.shortcuts import render, redirect
+from .forms import ImportarContasPagarForm
+from django.contrib import messages
+from django.urls import path
 
 @admin.register(Filial)
 class FilialAdmin(admin.ModelAdmin):
@@ -107,3 +113,98 @@ class ContaPagarAdmin(admin.ModelAdmin):
         return response
 
     exportar_excel.short_description = "Exportar selecionadas para Excel"
+
+@admin.register(ContaPagar)
+class ContaPagarAdmin(admin.ModelAdmin):
+    list_display = [...]
+    list_filter = [...]
+    search_fields = [...]
+    date_hierarchy = 'data_vencimento'
+    readonly_fields = [...]
+    actions = ['exportar_excel']
+
+    change_list_template = "admin/contas_pagar_changelist.html"  # vamos criar esse template
+
+    def get_urls(self):
+        urls = super().get_urls()
+        custom_urls = [
+            path("importar/", self.admin_site.admin_view(self.importar_excel), name="contaspagar_importar"),
+        ]
+        return custom_urls + urls
+
+    def importar_excel(self, request):
+        if request.method == "POST":
+            form = ImportarContasPagarForm(request.POST, request.FILES)
+            if form.is_valid():
+                arquivo = request.FILES['arquivo']
+                wb = openpyxl.load_workbook(arquivo)
+                ws = wb.active
+
+                # Pular cabeçalho
+                for row in ws.iter_rows(min_row=2, values_only=True):
+                    filial_nome, transacao_nome, fornecedor_nome, tipo_pagamento_nome, documento, descricao, numero_notas, codigo_barras, data_mov, data_venc, data_pag, valor_bruto, juros, multa, outros, desconto, valor_pago, saldo, status = row
+
+                    empresa = Empresa.objects.first()
+
+                    filial, _ = Filial.objects.get_or_create(empresa=empresa, nome=str(filial_nome).upper())
+                    transacao, _ = Transacao.objects.get_or_create(empresa=empresa, nome=str(transacao_nome).upper())
+                    tipo_pag, _ = TipoPagamento.objects.get_or_create(empresa=empresa, nome=str(tipo_pagamento_nome).upper())
+                    fornecedor = None
+                    if fornecedor_nome:
+                        fornecedor, _ = Fornecedor.objects.get_or_create(empresa=empresa, nome=str(fornecedor_nome).upper())
+
+                    conta = ContaPagar(
+                        empresa=empresa,
+                        filial=filial,
+                        transacao=transacao,
+                        fornecedor=fornecedor,
+                        tipo_pagamento=tipo_pag,
+                        documento=str(documento).upper() if documento else "",
+                        descricao=str(descricao).upper() if descricao else "",
+                        numero_notas=str(numero_notas) if numero_notas else "",
+                        codigo_barras=str(codigo_barras) if codigo_barras else "",
+                        data_movimentacao=self.parse_data(data_mov),
+                        data_vencimento=self.parse_data(data_venc),
+                        data_pagamento=self.parse_data(data_pag) if data_pag else None,
+                        valor_bruto=valor_bruto or 0,
+                        valor_juros=juros or 0,
+                        valor_multa=multa or 0,
+                        outros_acrescimos=outros or 0,
+                        valor_desconto=desconto or 0,
+                        valor_pago=valor_pago or 0,
+                        valor_saldo=saldo or 0,
+                        status=self.map_status(status),
+                        criado_por=request.user,
+                    )
+                    conta.save()
+
+                self.message_user(request, "Importação concluída com sucesso!", level=messages.SUCCESS)
+                return redirect("..")
+        else:
+            form = ImportarContasPagarForm()
+
+        context = dict(
+            self.admin_site.each_context(request),
+            form=form,
+            title="Importar Contas a Pagar",
+        )
+        return render(request, "admin/importar_contas_pagar.html", context)
+
+    def parse_data(self, valor):
+        if not valor:
+            return None
+        if isinstance(valor, datetime):
+            return valor.date()
+        try:
+            return datetime.strptime(str(valor), "%d/%m/%Y").date()
+        except:
+            return None
+
+    def map_status(self, valor):
+        mapa = {
+            "À Vencer": "a_vencer",
+            "Pago": "pago",
+            "Vencida": "vencida",
+            "Cancelado": "cancelado",
+        }
+        return mapa.get(str(valor).strip(), "a_vencer")
