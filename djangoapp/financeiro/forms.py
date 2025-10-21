@@ -193,3 +193,6 @@ class ContaOFXForm(forms.Form):
     valor = forms.DecimalField()
     data_pagamento = forms.DateField()
     descricao = forms.CharField(widget=forms.Textarea)
+
+class ImportarContasPagarForm(forms.Form):
+    arquivo = forms.FileField(label="Selecione o arquivo Excel")
