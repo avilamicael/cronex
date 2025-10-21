@@ -1,0 +1,32 @@
+{% extends "admin/base_site.html" %}
+
+{% block content %}
+<h1>{{ title }}</h1>
+
+<form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+
+    <div class="form-row">
+        <div>
+            <label for="{{ form.arquivo.id_for_label }}">{{ form.arquivo.label }}:</label>
+            {{ form.arquivo }}
+            {% if form.arquivo.errors %}
+                <p class="errornote">{{ form.arquivo.errors }}</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="submit-row">
+        <input type="submit" value="Importar" class="default">
+        <a href="../" class="button cancel-link">Cancelar</a>
+    </div>
+</form>
+
+<div style="margin-top: 20px;">
+    <h2>Instruções:</h2>
+    <ul>
+        <li>O arquivo deve estar no formato Excel (.xlsx ou .xls)</li>
+        <li>Funcionalidade de importação em desenvolvimento</li>
+    </ul>
+</div>
+{% endblock %}

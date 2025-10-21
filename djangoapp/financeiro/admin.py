@@ -44,6 +44,32 @@ class ContaPagarAdmin(admin.ModelAdmin):
 
     change_list_template = "admin/contas_pagar_changelist.html"
 
+    def get_urls(self):
+        urls = super().get_urls()
+        custom_urls = [
+            path('importar/', self.admin_site.admin_view(self.importar_view), name='contaspagar_importar'),
+        ]
+        return custom_urls + urls
+
+    def importar_view(self, request):
+        """View para importar contas a pagar via Excel"""
+        if request.method == 'POST':
+            form = ImportarContasPagarForm(request.POST, request.FILES)
+            if form.is_valid():
+                arquivo = request.FILES['arquivo']
+                # TODO: Implementar lógica de importação
+                messages.success(request, "Arquivo enviado com sucesso! (Importação a ser implementada)")
+                return redirect('..')
+        else:
+            form = ImportarContasPagarForm()
+
+        context = {
+            'form': form,
+            'title': 'Importar Contas a Pagar',
+            'site_header': 'Importação de Contas',
+        }
+        return render(request, 'admin/importar_contas.html', context)
+
     fieldsets = (
         ('Informações Básicas', {
             'fields': ('empresa', 'filial', 'transacao', 'fornecedor', 'tipo_pagamento')
