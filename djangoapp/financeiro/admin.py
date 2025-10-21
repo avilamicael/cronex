@@ -1,11 +1,11 @@
 from django.contrib import admin
-from .models import ContaPagar, Filial, Transacao, Fornecedor, TipoPagamento
+from .models import ContaPagar, Filial, Transacao, Fornecedor, TipoPagamento, RelatorioFaturamentoMensal
 import openpyxl
 from django.http import HttpResponse
 
 @admin.register(Filial)
 class FilialAdmin(admin.ModelAdmin):
-    list_display = ['nome', 'empresa']
+    list_display = ['nome', 'empresa', 'conta_bancaria']
     list_filter = ['empresa']
     search_fields = ['nome']
 
@@ -29,8 +29,8 @@ class TipoPagamentoAdmin(admin.ModelAdmin):
 
 @admin.register(ContaPagar)
 class ContaPagarAdmin(admin.ModelAdmin):
-    list_display = ['transacao', 'valor_bruto', 'valor_pago', 'data_pagamento', 'data_vencimento', 'status', 'fornecedor']
-    list_filter = ['empresa', 'status', 'data_vencimento', 'tipo_pagamento']
+    list_display = ['transacao', 'valor_bruto', 'valor_pago', 'data_pagamento', 'conta_bancaria_pagamento', 'data_vencimento', 'status', 'fornecedor']
+    list_filter = ['empresa', 'status', 'data_vencimento', 'tipo_pagamento', 'conta_bancaria_pagamento']
     search_fields = ['documento', 'transacao__nome', 'numero_notas', 'fornecedor__nome', 'tipo_pagamento__nome', 'data_pagamento', 'valor_bruto', 'valor_pago']
     date_hierarchy = 'data_vencimento'
     readonly_fields = ['valor_saldo', 'data_criacao', 'data_atualizacao', 'criado_por']
@@ -43,8 +43,8 @@ class ContaPagarAdmin(admin.ModelAdmin):
         ('Detalhes do Documento', {
             'fields': ('documento', 'descricao', 'numero_notas', 'codigo_barras')
         }),
-        ('Datas', {
-            'fields': ('data_movimentacao', 'data_vencimento', 'data_pagamento')
+        ('Datas e Pagamento', {
+            'fields': ('data_movimentacao', 'data_vencimento', 'data_pagamento', 'conta_bancaria_pagamento')
         }),
         ('Valores', {
             'fields': (
@@ -71,7 +71,7 @@ class ContaPagarAdmin(admin.ModelAdmin):
         headers = [
             'Filial', 'Transação', 'Fornecedor', 'Tipo de Pagamento', 'Documento',
             'Descrição', 'Nº Notas', 'Código de Barras', 'Data Movimentação',
-            'Data Vencimento', 'Data Pagamento', 'Valor Bruto', 'Juros', 'Multa',
+            'Data Vencimento', 'Data Pagamento', 'Banco Pagamento', 'Valor Bruto', 'Juros', 'Multa',
             'Outros Acréscimos', 'Desconto', 'Valor Pago', 'Saldo', 'Status'
         ]
         ws.append(headers)
@@ -89,6 +89,7 @@ class ContaPagarAdmin(admin.ModelAdmin):
                 conta.data_movimentacao.strftime('%d/%m/%Y'),
                 conta.data_vencimento.strftime('%d/%m/%Y'),
                 conta.data_pagamento.strftime('%d/%m/%Y') if conta.data_pagamento else '',
+                conta.conta_bancaria_pagamento.nome if conta.conta_bancaria_pagamento else '',
                 float(conta.valor_bruto),
                 float(conta.valor_juros),
                 float(conta.valor_multa),
@@ -107,3 +108,51 @@ class ContaPagarAdmin(admin.ModelAdmin):
         return response
 
     exportar_excel.short_description = "Exportar selecionadas para Excel"
+
+@admin.register(RelatorioFaturamentoMensal)
+class RelatorioFaturamentoMensalAdmin(admin.ModelAdmin):
+    list_display = ['empresa', 'mes_ano_formatado', 'data_geracao', 'tem_arquivo']
+    list_filter = ['empresa', 'ano', 'mes']
+    search_fields = ['empresa__nome']
+    readonly_fields = ['data_geracao', 'gerado_por', 'arquivo_zip']
+    ordering = ['-ano', '-mes']
+    actions = ['gerar_relatorio_action']
+
+    def mes_ano_formatado(self, obj):
+        return obj.mes_ano_formatado
+    mes_ano_formatado.short_description = 'Período'
+
+    def tem_arquivo(self, obj):
+        return bool(obj.arquivo_zip)
+    tem_arquivo.short_description = 'Arquivo'
+    tem_arquivo.boolean = True
+
+    def gerar_relatorio_action(self, request, queryset):
+        """Action para gerar/regenerar relatórios selecionados"""
+        from financeiro.tasks import gerar_relatorio_faturamento_mensal
+        from django.contrib import messages
+
+        count = 0
+        for relatorio in queryset:
+            try:
+                # Chama a task de forma síncrona (roda imediatamente)
+                resultado = gerar_relatorio_faturamento_mensal(
+                    mes_ref=relatorio.mes,
+                    ano_ref=relatorio.ano
+                )
+                count += 1
+            except Exception as e:
+                self.message_user(
+                    request,
+                    f"Erro ao gerar relatório {relatorio.mes:02d}/{relatorio.ano}: {str(e)}",
+                    level=messages.ERROR
+                )
+
+        if count > 0:
+            self.message_user(
+                request,
+                f"{count} relatório(s) gerado(s) com sucesso!",
+                level=messages.SUCCESS
+            )
+
+    gerar_relatorio_action.short_description = "Gerar/Regenerar relatórios selecionados"

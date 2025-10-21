@@ -1,9 +1,31 @@
 {% extends 'base.html' %}
 {% block content %}
-<h2>Conciliação de Contas Bancárias</h2>
-<form method="post" enctype="multipart/form-data">
-    {% csrf_token %}
-    {{ form.as_p }}
-    <button type="submit" class="btn btn-primary">Verificar Conciliação</button>
-</form>
+<div class="container-fluid px-4">
+    <h1 class="mt-4">Conciliação Bancária</h1>
+
+    <div class="card mb-4">
+        <div class="card-header">
+            <i class="fas fa-file-import me-1"></i>
+            Importar Arquivo OFX
+        </div>
+        <div class="card-body">
+            <form method="post" enctype="multipart/form-data">
+                {% csrf_token %}
+                {% for field in form %}
+                    <div class="mb-3">
+                        <label for="{{ field.id_for_label }}" class="form-label">{{ field.label }}</label>
+                        {{ field }}
+                        {% if field.help_text %}
+                            <div class="form-text">{{ field.help_text }}</div>
+                        {% endif %}
+                        {% for error in field.errors %}
+                            <div class="text-danger small">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+                {% endfor %}
+                <button type="submit" class="btn btn-primary"><i class="fas fa-search me-1"></i> Verificar Conciliação</button>
+            </form>
+        </div>
+    </div>
+</div>
 {% endblock %}

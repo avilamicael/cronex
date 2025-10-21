@@ -7,6 +7,9 @@ __localcode
 release.py
 /release.py
 
+.claude/*
+*/.claude/*
+CLAUDE.media
 # Django #
 *.log
 *.pot

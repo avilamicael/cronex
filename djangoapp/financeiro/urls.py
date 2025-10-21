@@ -14,4 +14,6 @@ urlpatterns = [
     # path('concilia-contas/validar/', views.validar_ofx, name='validar_ofx'),
     path('concilia/incluir/', views.incluir_conta_conciliacao, name='incluir_conta_conciliacao'),
 
+    path('relatorio-faturamento/<int:relatorio_id>/download/', views.download_relatorio_faturamento, name='download_relatorio_faturamento'),
+
 ]

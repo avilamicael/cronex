@@ -18,6 +18,7 @@
 .col-documento    { min-width: 100px; }
 .col-vencimento   { min-width: 100px; }
 .col-data-pgto    { min-width: 70px; }
+.col-banco        { min-width: 150px; }
 .col-valor        { min-width: 70px; text-align: right; }
 .col-valor-pgto   { min-width: 80px; font-weight: bold; }
 </style>
@@ -27,10 +28,17 @@
     {{ formset.management_form }}
 
     <div class="table-responsive">
-        <div class="mb-3 d-flex align-items-center">
-            <label class="mr-2 mb-0">Atualizar data de pagamento:</label>
-            <input type="date" id="data-pagamento-global" class="form-control form-control-sm mr-2" style="width: 180px;" value="{{ today|date:'Y-m-d' }}">
-            <button type="button" class="btn btn-outline-primary btn-sm" id="btn-aplicar-data">Aplicar</button>
+        <div class="mb-3 d-flex align-items-center flex-wrap gap-2">
+            <div class="d-flex align-items-center mr-3">
+                <label class="mr-2 mb-0">Atualizar data de pagamento:</label>
+                <input type="date" id="data-pagamento-global" class="form-control form-control-sm mr-2" style="width: 180px;" value="{{ today|date:'Y-m-d' }}">
+                <button type="button" class="btn btn-outline-primary btn-sm" id="btn-aplicar-data">Aplicar</button>
+            </div>
+            <div class="d-flex align-items-center">
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="btn-resetar-bancos" title="Restaura o banco para a filial de cada conta">
+                    <i class="fas fa-undo mr-1"></i>Resetar Bancos
+                </button>
+            </div>
         </div>        
         
         <table class="table table-bordered table-sm">
@@ -42,36 +50,34 @@
                     <th class="col-documento">Documento</th>
                     <th class="col-vencimento">Vencimento</th>
                     <th class="col-data-pgto">Data Pagamento</th>
+                    <th class="col-banco">Banco</th>
                     <th class="col-valor">Juros</th>
                     <th class="col-valor">Multa</th>
-                    <th class="col-valor">Desconto</th>
-                    <th class="col-valor">Acréscimos</th>
                     <th class="col-valor-pgto">Valor Pgto</th>
                 </tr>
             </thead>
-            
+
             <tbody>
                 {% for form in formset %}
                 {% with conta=contas|index:forloop.counter0 %}
-                <tr>
+                <tr data-filial-id="{{ conta.filial.id }}">
                     <td><input type="checkbox" class="linha-check" checked></td>
                     <td class="col-filial" title="{{ conta.filial.nome }}">{{ conta.filial.nome|default:""|truncatechars:20 }}</td>
                     <td class="col-fornecedor" title="{{ conta.fornecedor|default:'' }}">{{ conta.fornecedor|default:''|truncatechars:20 }}</td>
                     <td class="col-documento">{{ conta.documento }}</td>
                     <td class="col-vencimento">{{ conta.data_vencimento|date:"d/m/Y" }}</td>
-                
+
                     <input type="hidden" class="valor-original" value="{{ conta.valor_bruto|floatformat:2 }}">
-                
+
                     <td class="col-data-pgto">{{ form.data_pagamento }}</td>
+                    <td class="col-banco">{{ form.conta_bancaria_pagamento }}</td>
                     <td class="col-valor">{{ form.valor_juros }}</td>
                     <td class="col-valor">{{ form.valor_multa }}</td>
-                    <td class="col-valor">{{ form.valor_desconto }}</td>
-                    <td class="col-valor">{{ form.outros_acrescimos }}</td>
                     <td class="col-valor-pgto">
                         <input type="text" class="form-control valor-pgto" readonly>
                         <input type="hidden" name="{{ form.prefix }}-id" value="{{ form.instance.id }}">
                     </td>
-                </tr>                
+                </tr>
                 {% endwith %}
                 {% endfor %}
             </tbody>
@@ -98,20 +104,61 @@ document.addEventListener("DOMContentLoaded", function () {
             const saldo = parseFloat(row.querySelector(".valor-original").value.replace(',', '.')) || 0;
             const juros = parseFloat(row.querySelector('[name$="valor_juros"]').value.replace(',', '.')) || 0;
             const multa = parseFloat(row.querySelector('[name$="valor_multa"]').value.replace(',', '.')) || 0;
-            const desconto = parseFloat(row.querySelector('[name$="valor_desconto"]').value.replace(',', '.')) || 0;
-            const acrescimos = parseFloat(row.querySelector('[name$="outros_acrescimos"]').value.replace(',', '.')) || 0;
 
-            const valor_pgto = saldo + juros + multa + acrescimos - desconto;
+            const valor_pgto = saldo + juros + multa;
             const input_pgto = row.querySelector(".valor-pgto");
             input_pgto.value = formatarNumero(valor_pgto);
         });
     }
 
-    document.querySelectorAll('input[name$="valor_juros"], input[name$="valor_multa"], input[name$="valor_desconto"], input[name$="outros_acrescimos"]').forEach(input => {
+    // Destaca visualmente quando o banco é diferente da filial
+    function verificarBancosDiferentes() {
+        document.querySelectorAll("tbody tr").forEach(function (row) {
+            const filialId = row.getAttribute('data-filial-id');
+            const selectBanco = row.querySelector('select[name$="conta_bancaria_pagamento"]');
+
+            if (selectBanco && filialId) {
+                const bancoSelecionado = selectBanco.value;
+
+                if (bancoSelecionado && bancoSelecionado !== filialId) {
+                    // Banco diferente da filial - destaca em amarelo
+                    selectBanco.style.backgroundColor = '#fff3cd';
+                    selectBanco.style.borderColor = '#ffc107';
+                    selectBanco.title = 'Atenção: Banco diferente da filial da conta';
+                } else {
+                    // Banco igual à filial - aparência normal
+                    selectBanco.style.backgroundColor = '';
+                    selectBanco.style.borderColor = '';
+                    selectBanco.title = 'Banco padrão (mesma filial)';
+                }
+            }
+        });
+    }
+
+    // Reseta os bancos para a filial padrão
+    document.getElementById("btn-resetar-bancos").addEventListener("click", function () {
+        document.querySelectorAll("tbody tr").forEach(function (row) {
+            const filialId = row.getAttribute('data-filial-id');
+            const selectBanco = row.querySelector('select[name$="conta_bancaria_pagamento"]');
+
+            if (selectBanco && filialId) {
+                selectBanco.value = filialId;
+            }
+        });
+        verificarBancosDiferentes();
+    });
+
+    // Monitora mudanças nos selects de banco
+    document.querySelectorAll('select[name$="conta_bancaria_pagamento"]').forEach(select => {
+        select.addEventListener("change", verificarBancosDiferentes);
+    });
+
+    document.querySelectorAll('input[name$="valor_juros"], input[name$="valor_multa"]').forEach(input => {
         input.addEventListener("input", calcularValores);
     });
 
     calcularValores();
+    verificarBancosDiferentes(); // Verifica logo no carregamento
 
     // aplicar data apenas nas selecionadas
     document.getElementById("btn-aplicar-data").addEventListener("click", function () {

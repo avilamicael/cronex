@@ -3,14 +3,16 @@ from django.contrib import messages
 from django.views.decorators.http import require_POST
 import os
 from decimal import Decimal
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
+from django.http import FileResponse, Http404
 from .forms import ContaPagarForm
-from .models import Filial, Transacao, Fornecedor, TipoPagamento, ContaPagar
+from .models import Filial, Transacao, Fornecedor, TipoPagamento, ContaPagar, RelatorioFaturamentoMensal
 from financeiro.contas.incluir_contas import _importar_csv, _importar_xml
 from core.decorators import grupos_necessarios
 from .forms import ConciliacaoForm, ContaOFXForm
 from .utils import processar_ofx
+from .recorrencia import criar_contas_recorrentes
 
 @grupos_necessarios("Administrador", "Financeiro")
 @login_required
@@ -20,11 +22,41 @@ def lancar_conta_pagar(request):
     if request.method == 'POST':
         form = ContaPagarForm(request.POST, empresa=empresa)
         if form.is_valid():
-            conta = form.save(commit=False)
-            conta.empresa = empresa
-            conta.criado_por = request.user
-            conta.save()
-            messages.success(request, "Conta incluida com sucesso.")
+            # Verifica se é conta recorrente
+            eh_recorrente = form.cleaned_data.get('eh_recorrente')
+
+            if eh_recorrente:
+                # Cria múltiplas contas recorrentes
+                tipo_recorrencia = form.cleaned_data.get('recorrencia_tipo')
+                quantidade = form.cleaned_data.get('quantidade_recorrencias')
+
+                # Prepara a conta base (não salva ainda)
+                conta_base = form.save(commit=False)
+                conta_base.empresa = empresa
+                conta_base.criado_por = request.user
+
+                # Cria todas as contas recorrentes
+                contas_criadas = criar_contas_recorrentes(
+                    conta_base=conta_base,
+                    tipo_recorrencia=tipo_recorrencia,
+                    quantidade=quantidade,
+                    empresa=empresa,
+                    usuario=request.user
+                )
+
+                messages.success(
+                    request,
+                    f"{len(contas_criadas)} contas recorrentes criadas com sucesso! "
+                    f"({tipo_recorrencia.capitalize()} - {quantidade} parcelas)"
+                )
+            else:
+                # Conta única (comportamento normal)
+                conta = form.save(commit=False)
+                conta.empresa = empresa
+                conta.criado_por = request.user
+                conta.save()
+                messages.success(request, "Conta incluída com sucesso.")
+
             return redirect('lancar_conta_pagar')
         else:
             messages.error(request, "Erro ao lançar a conta. Verifique os campos obrigatórios.")
@@ -240,3 +272,34 @@ def incluir_conta_conciliacao(request):
 
     messages.success(request, "Conta adicionada com sucesso!")
     return redirect("concilia_contas")  # Redireciona de volta à página de conciliação
+
+@login_required
+@grupos_necessarios("Administrador", "Financeiro", "Gestor")
+def download_relatorio_faturamento(request, relatorio_id):
+    """
+    View segura para download do relatório de faturamento mensal.
+
+    Proteções:
+    - Requer autenticação (@login_required)
+    - Requer grupo Administrador, Financeiro ou Gestor
+    - Valida que o relatório pertence à empresa do usuário
+    - Serve arquivo via Django (não expõe caminho direto)
+    """
+    relatorio = get_object_or_404(
+        RelatorioFaturamentoMensal,
+        id=relatorio_id,
+        empresa=request.user.empresa
+    )
+
+    if not relatorio.arquivo_zip:
+        raise Http404("Arquivo não encontrado.")
+
+    # Retorna o arquivo para download de forma segura
+    response = FileResponse(relatorio.arquivo_zip.open('rb'), as_attachment=True)
+    response['Content-Disposition'] = f'attachment; filename="{os.path.basename(relatorio.arquivo_zip.name)}"'
+
+    # Headers de segurança adicionais
+    response['X-Content-Type-Options'] = 'nosniff'
+    response['Content-Type'] = 'application/zip'
+
+    return response

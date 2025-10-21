@@ -7,6 +7,7 @@ class Filial(models.Model):
     empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE)
     nome = models.CharField(max_length=255)
     cnpj = models.CharField(max_length=20, blank=True, null=True)
+    conta_bancaria = models.CharField(max_length=100, blank=True, null=True)
 
     def save(self, *args, **kwargs):
         if self.nome:
@@ -89,11 +90,22 @@ class ContaPagar(models.Model):
         ('cancelado', 'Cancelado'),
     ]
 
+    RECORRENCIA_CHOICES = [
+        ('semanal', 'Semanal (7 dias)'),
+        ('quinzenal', 'Quinzenal (15 dias)'),
+        ('mensal', 'Mensal (1 mês)'),
+        ('bimestral', 'Bimestral (2 meses)'),
+        ('trimestral', 'Trimestral (3 meses)'),
+        ('semestral', 'Semestral (6 meses)'),
+        ('anual', 'Anual (12 meses)'),
+    ]
+
     empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE)
-    filial = models.ForeignKey(Filial, on_delete=models.PROTECT)
+    filial = models.ForeignKey(Filial, on_delete=models.PROTECT, related_name='contas_filial')
     transacao = models.ForeignKey(Transacao, on_delete=models.PROTECT)
     fornecedor = models.ForeignKey(Fornecedor, on_delete=models.PROTECT, null=True, blank=True)
     tipo_pagamento = models.ForeignKey(TipoPagamento, on_delete=models.PROTECT)
+    conta_bancaria_pagamento = models.ForeignKey(Filial, on_delete=models.PROTECT, null=True, blank=True, related_name='contas_banco_pagador', verbose_name='Conta Bancária para Pagamento')
 
     documento = models.CharField(max_length=255)  # obrigatório
     descricao = models.TextField(blank=True)  # opcional
@@ -117,6 +129,35 @@ class ContaPagar(models.Model):
 
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='a_vencer')
     criado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
+
+    # Campos de recorrência
+    eh_recorrente = models.BooleanField(default=False, verbose_name='É recorrente?')
+    recorrencia_tipo = models.CharField(
+        max_length=20,
+        choices=RECORRENCIA_CHOICES,
+        blank=True,
+        null=True,
+        verbose_name='Tipo de recorrência'
+    )
+    recorrencia_grupo = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        help_text='Identificador do grupo de contas recorrentes',
+        verbose_name='Grupo de recorrência'
+    )
+    numero_parcela = models.IntegerField(
+        blank=True,
+        null=True,
+        help_text='Número desta parcela (ex: 1 de 12)',
+        verbose_name='Nº da Parcela'
+    )
+    total_parcelas = models.IntegerField(
+        blank=True,
+        null=True,
+        help_text='Total de parcelas da recorrência',
+        verbose_name='Total de Parcelas'
+    )
 
     data_criacao = models.DateTimeField(auto_now_add=True)
     data_atualizacao = models.DateTimeField(auto_now=True)
@@ -155,4 +196,57 @@ class ContaPagar(models.Model):
         self.status = "pago"
         self.save()
         # Atualiza o status para "pago" e salva a conta
+
+from django.core.files.storage import FileSystemStorage
+import os
+
+class OverwriteStorage(FileSystemStorage):
+    """Storage que sobrescreve arquivo ao invés de adicionar sufixo"""
+
+    def get_available_name(self, name, max_length=None):
+        """
+        Retorna o nome do arquivo como está, deletando o arquivo existente se houver.
+        Isso previne que o Django adicione sufixos como '_abc123' ao nome.
+        """
+        # Se o arquivo já existe, remove ele
+        if self.exists(name):
+            os.remove(self.path(name))
+        return name
+
+# Cria uma instância global do storage personalizado
+relatorio_storage = OverwriteStorage()
+
+class RelatorioFaturamentoMensal(models.Model):
+    empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE)
+    mes = models.IntegerField(help_text="Mês de referência (1-12)")
+    ano = models.IntegerField(help_text="Ano de referência")
+    arquivo_zip = models.FileField(
+        upload_to='relatorios_faturamento/%Y/%m/',
+        blank=True,
+        null=True,
+        storage=relatorio_storage
+    )
+    data_geracao = models.DateTimeField(auto_now_add=True)
+    gerado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
+
+    class Meta:
+        verbose_name = 'Relatório de Faturamento Mensal'
+        verbose_name_plural = 'Relatórios de Faturamento Mensal'
+        ordering = ['-ano', '-mes']
+        unique_together = ('empresa', 'mes', 'ano')
+
+    def __str__(self):
+        return f"Relatório {self.mes:02d}/{self.ano} - {self.empresa.nome}"
+
+    @property
+    def mes_ano_formatado(self):
+        meses = ['', 'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+                 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
+        return f"{meses[self.mes]}/{self.ano}"
+
+    def delete(self, *args, **kwargs):
+        # Remove o arquivo ao deletar o registro
+        if self.arquivo_zip:
+            self.arquivo_zip.delete(save=False)
+        super().delete(*args, **kwargs)
 

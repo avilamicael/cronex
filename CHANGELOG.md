@@ -1,6 +1,15 @@
 # 📦 Changelog - Cronex
 
 
+## [0.1.0] - 2025-10-21
+### Adicionado
+- dashboard
+- banco nas filiais
+- export automatico contabilidade
+
+# 📦 Changelog - Cronex
+
+
 ## [0.0.1] - 2025-06-25
 ### Adicionado
 - valor pago e data de pagamento como coluna no contas a pagar no admin

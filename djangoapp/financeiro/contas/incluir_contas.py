@@ -58,7 +58,7 @@ def generic_autocomplete(request, model_name):
 def baixar_contas_pagar_bulk(request):
     empresa = request.user.empresa
 
-    # ---------- PASSO 1: usuário acaba de clicar em “Baixar selecionadas” ----------
+    # ---------- PASSO 1: usuário acaba de clicar em "Baixar selecionadas" ----------
     if request.method == "GET":
         ids = request.GET.getlist("ids")  # retorna todos os valores marcados como lista
         if not ids:
@@ -76,17 +76,31 @@ def baixar_contas_pagar_bulk(request):
             messages.error(request, "Nenhuma das contas selecionadas está disponível para baixa. Verifique o status.")
             return redirect("listar_contas_pagar")
 
-        formset = BaixaFormSet(queryset=ContaPagar.objects.filter(id__in=id_list))
+        # Cria o formset passando a empresa para cada formulário
+        queryset = ContaPagar.objects.filter(id__in=id_list)
+        formset = BaixaFormSet(queryset=queryset, form_kwargs={'empresa': empresa})
+
+        # Inicializa o campo conta_bancaria_pagamento com a filial da conta
+        for form, conta in zip(formset.forms, contas):
+            if not form.instance.conta_bancaria_pagamento_id:
+                form.initial['conta_bancaria_pagamento'] = conta.filial.id
+
+        # Busca as filiais (bancos) disponíveis para seleção
+        filiais = Filial.objects.filter(empresa=empresa)
+
         return render(
             request,
             "financeiro/contas/baixar_contas_pagar.html",
-            {"formset": formset, 
-            "contas": contas,
-            "today": now().date(),}
+            {
+                "formset": formset,
+                "contas": contas,
+                "filiais": filiais,
+                "today": now().date(),
+            }
         )
 
     # ---------- PASSO 2: usuário preencheu e submeteu o formset ----------
-    formset = BaixaFormSet(request.POST)
+    formset = BaixaFormSet(request.POST, form_kwargs={'empresa': empresa})
     if formset.is_valid():
         with transaction.atomic():
             for form in formset:
@@ -96,13 +110,11 @@ def baixar_contas_pagar_bulk(request):
                     messages.error(request, f"A conta {conta.id} não pode ser baixada pois já está {conta.get_status_display}.")
                     return redirect("listar_contas_pagar")
 
-                # calcula o valor pago com base nos campos preenchidos
+                # calcula o valor pago com base nos campos preenchidos (sem desconto e acréscimos)
                 conta.valor_pago = (
                     conta.valor_bruto
                     + conta.valor_juros
                     + conta.valor_multa
-                    + conta.outros_acrescimos
-                    - conta.valor_desconto
                 )
                 conta.status = "pago"
                 conta.save()
@@ -111,15 +123,18 @@ def baixar_contas_pagar_bulk(request):
 
     ids = [form.instance.id for form in formset.forms]
     contas = ContaPagar.objects.filter(id__in=ids, empresa=empresa)
+    filiais = Filial.objects.filter(empresa=empresa)
     messages.error(request, "Preencha todos os campos obrigatórios antes de confirmar a baixa.")
 
     return render(
         request,
         "financeiro/contas/baixar_contas_pagar.html",
-        {"formset": formset, 
-        "contas": contas,
-        "today": now().date(),}
-
+        {
+            "formset": formset,
+            "contas": contas,
+            "filiais": filiais,
+            "today": now().date(),
+        }
     )
 
 def _importar_csv(arquivo, request, empresa):
