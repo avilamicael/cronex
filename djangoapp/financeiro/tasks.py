@@ -17,6 +17,7 @@ import zipfile
 import shutil
 from django.core.files import File
 from dateutil.relativedelta import relativedelta
+from openpyxl import Workbook
 
 User = get_user_model()
 
@@ -237,6 +238,7 @@ def gerar_excel_filial(filial, contas, mes, ano):
 def gerar_relatorio_faturamento_mensal(mes_ref=None, ano_ref=None):
     """
     Task que roda todo dia 1 de cada mês para gerar o relatório do mês anterior
+    Agrupa as contas por CONTA BANCÁRIA (campo conta_bancaria da Filial)
 
     Args:
         mes_ref: Mês de referência (1-12). Se None, usa mês anterior
@@ -245,12 +247,10 @@ def gerar_relatorio_faturamento_mensal(mes_ref=None, ano_ref=None):
     hoje = now().date()
 
     if mes_ref and ano_ref:
-        # Permite especificar mês/ano manualmente (útil para testes)
         mes = mes_ref
         ano = ano_ref
         print(f"[Relatório] Modo manual: gerando para {mes:02d}/{ano}")
     else:
-        # Calcula o mês anterior
         mes_anterior = hoje - relativedelta(months=1)
         mes = mes_anterior.month
         ano = mes_anterior.year
@@ -274,102 +274,613 @@ def gerar_relatorio_faturamento_mensal(mes_ref=None, ano_ref=None):
             total_contas = contas.count()
             print(f"[Relatório] {empresa.nome}: {total_contas} contas pagas em {mes:02d}/{ano}")
 
-            if total_contas > 0:
-                # Mostra detalhes das primeiras contas
-                print(f"[Relatório] Primeiras contas:")
-                for c in contas[:3]:
-                    print(f"  - ID={c.id}, Filial={c.filial.nome}, Data={c.data_pagamento}, Valor={c.valor_pago}")
-
             if not contas.exists():
                 print(f"[Relatório] {empresa.nome}: Nenhuma conta paga, pulando geração")
-                continue  # Pula se não houver contas pagas
+                continue
 
-            # Agrupa por filial
-            filiais_com_contas = {}
+            if total_contas > 0:
+                print(f"[Relatório] Primeiras contas para debug:")
+                for c in contas[:3]:
+                    # conta_bancaria_pagamento é uma Filial
+                    if c.conta_bancaria_pagamento:
+                        banco_info = f"{c.conta_bancaria_pagamento.nome} - Conta: {c.conta_bancaria_pagamento.conta_bancaria or 'N/A'}"
+                    else:
+                        banco_info = 'SEM BANCO'
+                    print(f"  - ID={c.id}, Banco={banco_info}, Filial origem={c.filial.nome if c.filial else 'SEM FILIAL'}, Valor={c.valor_pago}")
+
+            # Agrupa por CONTA BANCÁRIA (Filial que é o banco pagador)
+            bancos_com_contas = {}
+            contas_sem_banco = []
+            
             for conta in contas:
-                filial = conta.filial
-                if filial not in filiais_com_contas:
-                    filiais_com_contas[filial] = []
-                filiais_com_contas[filial].append(conta)
+                banco_pagador = conta.conta_bancaria_pagamento  # É uma Filial
+                
+                if banco_pagador:
+                    # Usa a Filial pagadora como chave
+                    if banco_pagador not in bancos_com_contas:
+                        bancos_com_contas[banco_pagador] = []
+                    bancos_com_contas[banco_pagador].append(conta)
+                else:
+                    contas_sem_banco.append(conta)
 
-            print(f"[Relatório] Filiais com contas: {len(filiais_com_contas)}")
-            for filial, contas_filial in filiais_com_contas.items():
-                print(f"  - {filial.nome}: {len(contas_filial)} contas")
+            print(f"[Relatório] Contas bancárias (Filiais pagadoras) encontradas: {len(bancos_com_contas)}")
+            for banco_pagador, contas_banco in bancos_com_contas.items():
+                conta_info = banco_pagador.conta_bancaria or 'Conta não cadastrada'
+                print(f"  - {banco_pagador.nome} (Conta: {conta_info}): {len(contas_banco)} contas")
+            
+            if contas_sem_banco:
+                print(f"  - ⚠️ ATENÇÃO: {len(contas_sem_banco)} contas SEM BANCO associado")
 
-            # Cria diretório temporário para os arquivos Excel
+            # Valida se tem algo para gerar
+            if not bancos_com_contas and not contas_sem_banco:
+                print(f"[Relatório] ⚠️ Nenhuma conta encontrada para processar!")
+                continue
+
+            # Cria diretório temporário
             temp_dir = tempfile.mkdtemp()
-            print(f"[Relatório] Diretório temporário criado: {temp_dir}")
+            print(f"[Relatório] Diretório temporário: {temp_dir}")
+            
             try:
-                # Gera um arquivo Excel para cada filial
-                for filial, contas_filial in filiais_com_contas.items():
-                    # Nome seguro para a pasta
-                    nome_pasta = filial.nome.replace('/', '-').replace('\\', '-')
-                    pasta_filial = os.path.join(temp_dir, nome_pasta)
-                    os.makedirs(pasta_filial, exist_ok=True)
-                    print(f"[Relatório] Gerando Excel para {filial.nome}...")
+                # Gera Excel para cada CONTA BANCÁRIA (Filial pagadora)
+                for banco_pagador, contas_banco in bancos_com_contas.items():
+                    try:
+                        # Nome seguro para pasta usando o nome da Filial pagadora
+                        nome_pasta = banco_pagador.nome.replace('/', '-').replace('\\', '-').replace(' ', '_')
+                        pasta_banco = os.path.join(temp_dir, nome_pasta)
+                        os.makedirs(pasta_banco, exist_ok=True)
+                        
+                        conta_info = banco_pagador.conta_bancaria or 'N/A'
+                        print(f"[Relatório] Gerando Excel para: {banco_pagador.nome} (Conta: {conta_info})")
+                        print(f"[Relatório]   Pasta: {pasta_banco}")
+                        print(f"[Relatório]   Total de contas: {len(contas_banco)}")
 
-                    # Gera o Excel
-                    wb = gerar_excel_filial(filial, contas_filial, mes, ano)
+                        # Gera o Excel
+                        wb = gerar_excel_banco(banco_pagador, contas_banco, mes, ano)
 
-                    # Salva o arquivo
-                    arquivo_excel = os.path.join(pasta_filial, f'faturamento_{mes:02d}_{ano}.xlsx')
-                    wb.save(arquivo_excel)
-                    print(f"[Relatório] Excel salvo: {arquivo_excel}")
+                        # Salva
+                        arquivo_excel = os.path.join(pasta_banco, f'faturamento_{mes:02d}_{ano}.xlsx')
+                        wb.save(arquivo_excel)
+                        print(f"[Relatório]   ✅ Excel salvo: {arquivo_excel}")
+                        
+                    except Exception as e:
+                        print(f"[Relatório]   ❌ ERRO ao gerar Excel para {banco_pagador.nome}: {e}")
+                        import traceback
+                        traceback.print_exc()
+                        continue
 
-                # Cria o arquivo ZIP em um arquivo temporário
+                # Se houver contas sem banco
+                if contas_sem_banco:
+                    try:
+                        nome_pasta = "Sem_Banco"
+                        pasta_sem_banco = os.path.join(temp_dir, nome_pasta)
+                        os.makedirs(pasta_sem_banco, exist_ok=True)
+                        
+                        print(f"[Relatório] Gerando Excel para contas SEM BANCO ({len(contas_sem_banco)} contas)")
+                        
+                        wb = gerar_excel_sem_banco(contas_sem_banco, mes, ano)
+                        arquivo_excel = os.path.join(pasta_sem_banco, f'faturamento_{mes:02d}_{ano}.xlsx')
+                        wb.save(arquivo_excel)
+                        print(f"[Relatório]   ✅ Excel salvo: {arquivo_excel}")
+                        
+                    except Exception as e:
+                        print(f"[Relatório]   ❌ ERRO ao gerar Excel para contas sem banco: {e}")
+                        import traceback
+                        traceback.print_exc()
+
+                # Lista arquivos gerados
+                print(f"\n[Relatório] Listando arquivos gerados:")
+                arquivos_excel = []
+                for root, dirs, files in os.walk(temp_dir):
+                    for file in files:
+                        if file.endswith('.xlsx'):
+                            file_path = os.path.join(root, file)
+                            arquivos_excel.append(file_path)
+                            print(f"  - {os.path.relpath(file_path, temp_dir)}")
+                
+                if not arquivos_excel:
+                    print(f"[Relatório] ❌ ERRO: Nenhum arquivo Excel foi gerado!")
+                    continue
+
+                # Cria ZIP
                 zip_filename = f'relatorio_faturamento_{mes:02d}_{ano}_{empresa.nome.replace(" ", "_")}.zip'
                 zip_temp_path = os.path.join(temp_dir, zip_filename)
-                print(f"[Relatório] Criando ZIP: {zip_temp_path}")
+                print(f"\n[Relatório] Criando ZIP: {zip_filename}")
 
                 with zipfile.ZipFile(zip_temp_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
                     arquivos_adicionados = 0
-                    for root, dirs, files in os.walk(temp_dir):
-                        for file in files:
-                            if file.endswith('.xlsx'):
-                                file_path = os.path.join(root, file)
-                                # Mantém a estrutura de pastas dentro do ZIP
-                                arcname = os.path.relpath(file_path, temp_dir)
-                                zipf.write(file_path, arcname)
-                                arquivos_adicionados += 1
-                                print(f"[Relatório] Adicionado ao ZIP: {arcname}")
+                    for file_path in arquivos_excel:
+                        arcname = os.path.relpath(file_path, temp_dir)
+                        zipf.write(file_path, arcname)
+                        arquivos_adicionados += 1
+                        print(f"  - Adicionado: {arcname}")
 
-                print(f"[Relatório] ZIP criado com {arquivos_adicionados} arquivos")
+                print(f"[Relatório] ✅ ZIP criado com {arquivos_adicionados} arquivos")
 
-                # Salva ou atualiza o relatório no banco de dados
+                # Verifica se o ZIP foi criado
+                if not os.path.exists(zip_temp_path):
+                    print(f"[Relatório] ❌ ERRO: ZIP não foi criado em {zip_temp_path}")
+                    continue
+                
+                zip_size = os.path.getsize(zip_temp_path)
+                print(f"[Relatório] Tamanho do ZIP: {zip_size / 1024:.2f} KB")
+
+                # Salva no banco
                 relatorio, created = RelatorioFaturamentoMensal.objects.update_or_create(
                     empresa=empresa,
                     mes=mes,
                     ano=ano,
                     defaults={'gerado_por': None}
                 )
-                print(f"[Relatório] Registro no DB: {'criado' if created else 'atualizado'} (ID={relatorio.id})")
+                print(f"[Relatório] Registro no DB: {'CRIADO' if created else 'ATUALIZADO'} (ID={relatorio.id})")
 
-                # Remove arquivo antigo do campo (OverwriteStorage vai substituir automaticamente)
                 if relatorio.arquivo_zip:
-                    print(f"[Relatório] Substituindo arquivo antigo: {relatorio.arquivo_zip.name}")
+                    print(f"[Relatório] Arquivo antigo será substituído: {relatorio.arquivo_zip.name}")
 
-                # Anexa o arquivo ZIP - OverwriteStorage sobrescreve automaticamente
-                print(f"[Relatório] Salvando arquivo no Django (com OverwriteStorage)...")
+                # Salva arquivo
+                print(f"[Relatório] Salvando arquivo no Django...")
                 with open(zip_temp_path, 'rb') as f:
                     relatorio.arquivo_zip.save(zip_filename, File(f), save=True)
 
-                print(f"[Relatório] Arquivo salvo em: {relatorio.arquivo_zip.path}")
-                print(f"[Relatório] ✅ Relatório gerado com sucesso para {empresa.nome}!")
+                print(f"[Relatório] ✅ Arquivo salvo: {relatorio.arquivo_zip.name}")
+                if hasattr(relatorio.arquivo_zip, 'path'):
+                    print(f"[Relatório] Path completo: {relatorio.arquivo_zip.path}")
+                
+                print(f"\n[Relatório] ✅✅✅ SUCESSO para {empresa.nome}!")
 
+            except Exception as e:
+                print(f"[Relatório] ❌ ERRO durante geração de arquivos: {e}")
+                import traceback
+                traceback.print_exc()
+                
             finally:
-                # Limpa o diretório temporário
+                # Limpa temp
+                print(f"[Relatório] Limpando diretório temporário...")
                 shutil.rmtree(temp_dir, ignore_errors=True)
 
         except Exception as e:
-            # Log do erro (você pode adicionar logging aqui)
-            print(f"❌ ERRO ao gerar relatório para {empresa.nome}: {e}")
+            print(f"\n[Relatório] ❌❌❌ ERRO GERAL para {empresa.nome}: {e}")
             import traceback
             traceback.print_exc()
             continue
 
-    print(f"\n[Relatório] Processo finalizado!")
+    print(f"\n[Relatório] ========== PROCESSO FINALIZADO ==========")
     return f"Relatórios gerados para {mes:02d}/{ano}"
 
+
+def gerar_excel_banco(banco_pagador, contas, mes, ano):
+    """
+    Gera Excel com contas pagas por uma conta bancária (Filial pagadora)
+    
+    Args:
+        banco_pagador: Filial que representa a conta bancária pagadora
+        contas: Lista de ContaPagar pagas por esta conta
+        mes: Mês de referência
+        ano: Ano de referência
+    """
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+    
+    print(f"    [Excel] Iniciando geração para: {banco_pagador.nome}")
+    
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Faturamento"
+    
+    # Cabeçalho
+    ws['A1'] = f'Relatório de Faturamento - {mes:02d}/{ano}'
+    ws['A1'].font = Font(size=14, bold=True)
+    ws['A2'] = f'Conta Bancária Pagadora: {banco_pagador.nome}'
+    ws['A2'].font = Font(size=12, bold=True)
+    
+    # Headers - Todas as colunas do relatório original + Banco Pagamento
+    headers = [
+        'Data Movim.',
+        'Data Venc.',
+        'Data Pgto',
+        'Filial',
+        'Banco Pagamento',
+        'Transação',
+        'Fornecedor',
+        'Tipo Pgto',
+        'Documento',
+        'Descrição',
+        'Nº Notas',
+        'Valor Bruto',
+        'Juros',
+        'Multa',
+        'Acréscimos',
+        'Desconto',
+        'Valor Pago',
+        'Saldo'
+    ]
+    
+    header_fill = PatternFill(start_color='366092', end_color='366092', fill_type='solid')
+    header_font = Font(color='FFFFFF', bold=True)
+    
+    for col, header in enumerate(headers, start=1):
+        cell = ws.cell(row=4, column=col)
+        cell.value = header
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+    
+    # Dados
+    row = 5
+    total_bruto = 0
+    total_juros = 0
+    total_multa = 0
+    total_acrescimos = 0
+    total_desconto = 0
+    total_pago = 0
+    total_saldo = 0
+    
+    print(f"    [Excel] Processando {len(contas)} contas...")
+    
+    for conta in contas:
+        col = 1
+        
+        # Data Movimentação
+        ws.cell(row=row, column=col).value = conta.data_movimentacao.strftime('%d/%m/%Y') if conta.data_movimentacao else '-'
+        col += 1
+        
+        # Data Vencimento
+        ws.cell(row=row, column=col).value = conta.data_vencimento.strftime('%d/%m/%Y') if conta.data_vencimento else '-'
+        col += 1
+        
+        # Data Pagamento
+        ws.cell(row=row, column=col).value = conta.data_pagamento.strftime('%d/%m/%Y') if conta.data_pagamento else '-'
+        col += 1
+        
+        # Filial (origem da despesa)
+        ws.cell(row=row, column=col).value = conta.filial.nome if conta.filial else '-'
+        col += 1
+        
+        # Banco Pagamento (conta bancária que efetuou o pagamento)
+        ws.cell(row=row, column=col).value = conta.conta_bancaria_pagamento.nome if conta.conta_bancaria_pagamento else '-'
+        col += 1
+        
+        # Transação
+        ws.cell(row=row, column=col).value = conta.transacao.nome if conta.transacao else '-'
+        col += 1
+        
+        # Fornecedor
+        ws.cell(row=row, column=col).value = conta.fornecedor.nome if conta.fornecedor else '-'
+        col += 1
+        
+        # Tipo Pagamento
+        ws.cell(row=row, column=col).value = conta.tipo_pagamento.nome if conta.tipo_pagamento else '-'
+        col += 1
+        
+        # Documento
+        ws.cell(row=row, column=col).value = conta.documento or '-'
+        col += 1
+        
+        # Descrição
+        ws.cell(row=row, column=col).value = conta.descricao or '-'
+        col += 1
+        
+        # Número Notas
+        ws.cell(row=row, column=col).value = conta.numero_notas or '-'
+        col += 1
+        
+        # Valor Bruto
+        valor_bruto = float(conta.valor_bruto) if conta.valor_bruto else 0
+        ws.cell(row=row, column=col).value = valor_bruto
+        ws.cell(row=row, column=col).number_format = 'R$ #,##0.00'
+        total_bruto += valor_bruto
+        col += 1
+        
+        # Juros
+        valor_juros = float(conta.valor_juros) if conta.valor_juros else 0
+        ws.cell(row=row, column=col).value = valor_juros
+        ws.cell(row=row, column=col).number_format = 'R$ #,##0.00'
+        total_juros += valor_juros
+        col += 1
+        
+        # Multa
+        valor_multa = float(conta.valor_multa) if conta.valor_multa else 0
+        ws.cell(row=row, column=col).value = valor_multa
+        ws.cell(row=row, column=col).number_format = 'R$ #,##0.00'
+        total_multa += valor_multa
+        col += 1
+        
+        # Acréscimos
+        valor_acrescimos = float(conta.outros_acrescimos) if conta.outros_acrescimos else 0
+        ws.cell(row=row, column=col).value = valor_acrescimos
+        ws.cell(row=row, column=col).number_format = 'R$ #,##0.00'
+        total_acrescimos += valor_acrescimos
+        col += 1
+        
+        # Desconto
+        valor_desconto = float(conta.valor_desconto) if conta.valor_desconto else 0
+        ws.cell(row=row, column=col).value = valor_desconto
+        ws.cell(row=row, column=col).number_format = 'R$ #,##0.00'
+        total_desconto += valor_desconto
+        col += 1
+        
+        # Valor Pago
+        valor_pago = float(conta.valor_pago) if conta.valor_pago else 0
+        ws.cell(row=row, column=col).value = valor_pago
+        ws.cell(row=row, column=col).number_format = 'R$ #,##0.00'
+        total_pago += valor_pago
+        col += 1
+        
+        # Saldo
+        valor_saldo = float(conta.valor_saldo) if conta.valor_saldo else 0
+        ws.cell(row=row, column=col).value = valor_saldo
+        ws.cell(row=row, column=col).number_format = 'R$ #,##0.00'
+        total_saldo += valor_saldo
+        
+        row += 1
+    
+    # Linha de Totais
+    ws.cell(row=row, column=11).value = 'TOTAL:'
+    ws.cell(row=row, column=11).font = Font(bold=True)
+    ws.cell(row=row, column=11).alignment = Alignment(horizontal='right')
+    
+    ws.cell(row=row, column=12).value = total_bruto
+    ws.cell(row=row, column=12).number_format = 'R$ #,##0.00'
+    ws.cell(row=row, column=12).font = Font(bold=True)
+    
+    ws.cell(row=row, column=13).value = total_juros
+    ws.cell(row=row, column=13).number_format = 'R$ #,##0.00'
+    ws.cell(row=row, column=13).font = Font(bold=True)
+    
+    ws.cell(row=row, column=14).value = total_multa
+    ws.cell(row=row, column=14).number_format = 'R$ #,##0.00'
+    ws.cell(row=row, column=14).font = Font(bold=True)
+    
+    ws.cell(row=row, column=15).value = total_acrescimos
+    ws.cell(row=row, column=15).number_format = 'R$ #,##0.00'
+    ws.cell(row=row, column=15).font = Font(bold=True)
+    
+    ws.cell(row=row, column=16).value = total_desconto
+    ws.cell(row=row, column=16).number_format = 'R$ #,##0.00'
+    ws.cell(row=row, column=16).font = Font(bold=True)
+    
+    ws.cell(row=row, column=17).value = total_pago
+    ws.cell(row=row, column=17).number_format = 'R$ #,##0.00'
+    ws.cell(row=row, column=17).font = Font(bold=True)
+    
+    ws.cell(row=row, column=18).value = total_saldo
+    ws.cell(row=row, column=18).number_format = 'R$ #,##0.00'
+    ws.cell(row=row, column=18).font = Font(bold=True)
+    
+    # Ajusta larguras das colunas
+    ws.column_dimensions['A'].width = 12  # Data Movim
+    ws.column_dimensions['B'].width = 12  # Data Venc
+    ws.column_dimensions['C'].width = 12  # Data Pgto
+    ws.column_dimensions['D'].width = 25  # Filial
+    ws.column_dimensions['E'].width = 25  # Banco Pagamento
+    ws.column_dimensions['F'].width = 25  # Transação
+    ws.column_dimensions['G'].width = 30  # Fornecedor
+    ws.column_dimensions['H'].width = 18  # Tipo Pgto
+    ws.column_dimensions['I'].width = 20  # Documento
+    ws.column_dimensions['J'].width = 40  # Descrição
+    ws.column_dimensions['K'].width = 15  # Nº Notas
+    ws.column_dimensions['L'].width = 14  # Valor Bruto
+    ws.column_dimensions['M'].width = 12  # Juros
+    ws.column_dimensions['N'].width = 12  # Multa
+    ws.column_dimensions['O'].width = 12  # Acréscimos
+    ws.column_dimensions['P'].width = 12  # Desconto
+    ws.column_dimensions['Q'].width = 14  # Valor Pago
+    ws.column_dimensions['R'].width = 12  # Saldo
+    
+    print(f"    [Excel] ✅ Excel gerado com {len(contas)} linhas, total pago: R$ {total_pago:,.2f}")
+    
+    return wb
+
+
+def gerar_excel_sem_banco(contas, mes, ano):
+    """Gera Excel para contas sem banco associado"""    
+    print(f"    [Excel] Iniciando geração para contas SEM BANCO")
+    
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Faturamento"
+    
+    # Cabeçalho
+    ws['A1'] = f'Relatório de Faturamento - {mes:02d}/{ano}'
+    ws['A1'].font = Font(size=14, bold=True)
+    ws['A2'] = '⚠️ CONTAS SEM BANCO ASSOCIADO ⚠️'
+    ws['A2'].font = Font(size=12, bold=True, color='FF0000')
+    
+    # Headers - Todas as colunas
+    headers = [
+        'Data Movim.',
+        'Data Venc.',
+        'Data Pgto',
+        'Filial',
+        'Banco Pagamento',
+        'Transação',
+        'Fornecedor',
+        'Tipo Pgto',
+        'Documento',
+        'Descrição',
+        'Nº Notas',
+        'Valor Bruto',
+        'Juros',
+        'Multa',
+        'Acréscimos',
+        'Desconto',
+        'Valor Pago',
+        'Saldo'
+    ]
+    
+    header_fill = PatternFill(start_color='FF6B6B', end_color='FF6B6B', fill_type='solid')
+    header_font = Font(color='FFFFFF', bold=True)
+    
+    for col, header in enumerate(headers, start=1):
+        cell = ws.cell(row=4, column=col)
+        cell.value = header
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+    
+    # Dados
+    row = 5
+    total_bruto = 0
+    total_juros = 0
+    total_multa = 0
+    total_acrescimos = 0
+    total_desconto = 0
+    total_pago = 0
+    total_saldo = 0
+    
+    for conta in contas:
+        col = 1
+        
+        # Data Movimentação
+        ws.cell(row=row, column=col).value = conta.data_movimentacao.strftime('%d/%m/%Y') if conta.data_movimentacao else '-'
+        col += 1
+        
+        # Data Vencimento
+        ws.cell(row=row, column=col).value = conta.data_vencimento.strftime('%d/%m/%Y') if conta.data_vencimento else '-'
+        col += 1
+        
+        # Data Pagamento
+        ws.cell(row=row, column=col).value = conta.data_pagamento.strftime('%d/%m/%Y') if conta.data_pagamento else '-'
+        col += 1
+        
+        # Filial
+        ws.cell(row=row, column=col).value = conta.filial.nome if conta.filial else '-'
+        col += 1
+        
+        # Banco Pagamento (sempre mostra como "SEM BANCO" neste relatório)
+        ws.cell(row=row, column=col).value = 'SEM BANCO'
+        ws.cell(row=row, column=col).font = Font(color='FF0000')
+        col += 1
+        
+        # Transação
+        ws.cell(row=row, column=col).value = conta.transacao.nome if conta.transacao else '-'
+        col += 1
+        
+        # Fornecedor
+        ws.cell(row=row, column=col).value = conta.fornecedor.nome if conta.fornecedor else '-'
+        col += 1
+        
+        # Tipo Pagamento
+        ws.cell(row=row, column=col).value = conta.tipo_pagamento.nome if conta.tipo_pagamento else '-'
+        col += 1
+        
+        # Documento
+        ws.cell(row=row, column=col).value = conta.documento or '-'
+        col += 1
+        
+        # Descrição
+        ws.cell(row=row, column=col).value = conta.descricao or '-'
+        col += 1
+        
+        # Número Notas
+        ws.cell(row=row, column=col).value = conta.numero_notas or '-'
+        col += 1
+        
+        # Valor Bruto
+        valor_bruto = float(conta.valor_bruto) if conta.valor_bruto else 0
+        ws.cell(row=row, column=col).value = valor_bruto
+        ws.cell(row=row, column=col).number_format = 'R$ #,##0.00'
+        total_bruto += valor_bruto
+        col += 1
+        
+        # Juros
+        valor_juros = float(conta.valor_juros) if conta.valor_juros else 0
+        ws.cell(row=row, column=col).value = valor_juros
+        ws.cell(row=row, column=col).number_format = 'R$ #,##0.00'
+        total_juros += valor_juros
+        col += 1
+        
+        # Multa
+        valor_multa = float(conta.valor_multa) if conta.valor_multa else 0
+        ws.cell(row=row, column=col).value = valor_multa
+        ws.cell(row=row, column=col).number_format = 'R$ #,##0.00'
+        total_multa += valor_multa
+        col += 1
+        
+        # Acréscimos
+        valor_acrescimos = float(conta.outros_acrescimos) if conta.outros_acrescimos else 0
+        ws.cell(row=row, column=col).value = valor_acrescimos
+        ws.cell(row=row, column=col).number_format = 'R$ #,##0.00'
+        total_acrescimos += valor_acrescimos
+        col += 1
+        
+        # Desconto
+        valor_desconto = float(conta.valor_desconto) if conta.valor_desconto else 0
+        ws.cell(row=row, column=col).value = valor_desconto
+        ws.cell(row=row, column=col).number_format = 'R$ #,##0.00'
+        total_desconto += valor_desconto
+        col += 1
+        
+        # Valor Pago
+        valor_pago = float(conta.valor_pago) if conta.valor_pago else 0
+        ws.cell(row=row, column=col).value = valor_pago
+        ws.cell(row=row, column=col).number_format = 'R$ #,##0.00'
+        total_pago += valor_pago
+        col += 1
+        
+        # Saldo
+        valor_saldo = float(conta.valor_saldo) if conta.valor_saldo else 0
+        ws.cell(row=row, column=col).value = valor_saldo
+        ws.cell(row=row, column=col).number_format = 'R$ #,##0.00'
+        total_saldo += valor_saldo
+        
+        row += 1
+    
+    # Linha de Totais
+    ws.cell(row=row, column=11).value = 'TOTAL:'
+    ws.cell(row=row, column=11).font = Font(bold=True)
+    ws.cell(row=row, column=11).alignment = Alignment(horizontal='right')
+    
+    ws.cell(row=row, column=12).value = total_bruto
+    ws.cell(row=row, column=12).number_format = 'R$ #,##0.00'
+    ws.cell(row=row, column=12).font = Font(bold=True)
+    
+    ws.cell(row=row, column=13).value = total_juros
+    ws.cell(row=row, column=13).number_format = 'R$ #,##0.00'
+    ws.cell(row=row, column=13).font = Font(bold=True)
+    
+    ws.cell(row=row, column=14).value = total_multa
+    ws.cell(row=row, column=14).number_format = 'R$ #,##0.00'
+    ws.cell(row=row, column=14).font = Font(bold=True)
+    
+    ws.cell(row=row, column=15).value = total_acrescimos
+    ws.cell(row=row, column=15).number_format = 'R$ #,##0.00'
+    ws.cell(row=row, column=15).font = Font(bold=True)
+    
+    ws.cell(row=row, column=16).value = total_desconto
+    ws.cell(row=row, column=16).number_format = 'R$ #,##0.00'
+    ws.cell(row=row, column=16).font = Font(bold=True)
+    
+    ws.cell(row=row, column=17).value = total_pago
+    ws.cell(row=row, column=17).number_format = 'R$ #,##0.00'
+    ws.cell(row=row, column=17).font = Font(bold=True)
+    
+    ws.cell(row=row, column=18).value = total_saldo
+    ws.cell(row=row, column=18).number_format = 'R$ #,##0.00'
+    ws.cell(row=row, column=18).font = Font(bold=True)
+    
+    # Ajusta larguras das colunas
+    ws.column_dimensions['A'].width = 12  # Data Movim
+    ws.column_dimensions['B'].width = 12  # Data Venc
+    ws.column_dimensions['C'].width = 12  # Data Pgto
+    ws.column_dimensions['D'].width = 25  # Filial
+    ws.column_dimensions['E'].width = 25  # Banco Pagamento
+    ws.column_dimensions['F'].width = 25  # Transação
+    ws.column_dimensions['G'].width = 30  # Fornecedor
+    ws.column_dimensions['H'].width = 18  # Tipo Pgto
+    ws.column_dimensions['I'].width = 20  # Documento
+    ws.column_dimensions['J'].width = 40  # Descrição
+    ws.column_dimensions['K'].width = 15  # Nº Notas
+    ws.column_dimensions['L'].width = 14  # Valor Bruto
+    ws.column_dimensions['M'].width = 12  # Juros
+    ws.column_dimensions['N'].width = 12  # Multa
+    ws.column_dimensions['O'].width = 12  # Acréscimos
+    ws.column_dimensions['P'].width = 12  # Desconto
+    ws.column_dimensions['Q'].width = 14  # Valor Pago
+    ws.column_dimensions['R'].width = 12  # Saldo
+    
+    print(f"    [Excel] ✅ Excel SEM BANCO gerado com {len(contas)} linhas, total pago: R$ {total_pago:,.2f}")
+    
+    return wb
 
 # ========================================
 # TASKS PARA IMPORTAÇÃO AUTOMÁTICA DE NFE
