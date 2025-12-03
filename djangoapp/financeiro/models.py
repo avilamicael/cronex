@@ -250,3 +250,398 @@ class RelatorioFaturamentoMensal(models.Model):
             self.arquivo_zip.delete(save=False)
         super().delete(*args, **kwargs)
 
+
+# ==============================
+# GESTÃO DE NOTAS FISCAIS ELETRÔNICAS
+# ==============================
+
+class CertificadoDigital(models.Model):
+    """
+    Armazena certificados digitais (A1) para consulta de NF-e na SEFAZ.
+    Senhas são criptografadas antes de serem salvas.
+    """
+    UF_CHOICES = [
+        ('11', 'Rondônia'), ('12', 'Acre'), ('13', 'Amazonas'), ('14', 'Roraima'),
+        ('15', 'Pará'), ('16', 'Amapá'), ('17', 'Tocantins'), ('21', 'Maranhão'),
+        ('22', 'Piauí'), ('23', 'Ceará'), ('24', 'Rio Grande do Norte'),
+        ('25', 'Paraíba'), ('26', 'Pernambuco'), ('27', 'Alagoas'), ('28', 'Sergipe'),
+        ('29', 'Bahia'), ('31', 'Minas Gerais'), ('32', 'Espírito Santo'),
+        ('33', 'Rio de Janeiro'), ('35', 'São Paulo'), ('41', 'Paraná'),
+        ('42', 'Santa Catarina'), ('43', 'Rio Grande do Sul'), ('50', 'Mato Grosso do Sul'),
+        ('51', 'Mato Grosso'), ('52', 'Goiás'), ('53', 'Distrito Federal'),
+    ]
+
+    empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, related_name='certificados')
+    filial = models.ForeignKey(
+        Filial,
+        on_delete=models.CASCADE,
+        related_name='certificados',
+        help_text='Filial proprietária do certificado (CNPJ)'
+    )
+
+    # Dados do certificado
+    arquivo_pfx = models.FileField(
+        upload_to='certificados/%Y/%m/',
+        help_text='Arquivo .pfx ou .p12 do certificado digital A1'
+    )
+    senha_encrypted = models.BinaryField(
+        help_text='Senha do certificado (criptografada automaticamente)'
+    )
+    uf_codigo = models.CharField(
+        max_length=2,
+        choices=UF_CHOICES,
+        verbose_name='UF',
+        help_text='Estado para consulta na SEFAZ'
+    )
+
+    # Validade
+    data_validade = models.DateField(
+        help_text='Data de vencimento do certificado'
+    )
+    ativo = models.BooleanField(
+        default=True,
+        help_text='Certificado ativo para uso'
+    )
+
+    # Controle
+    criado_em = models.DateTimeField(auto_now_add=True)
+    atualizado_em = models.DateTimeField(auto_now=True)
+    criado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True
+    )
+
+    # NSU controle
+    ultimo_nsu = models.CharField(
+        max_length=15,
+        default='000000000000000',
+        help_text='Último NSU consultado na SEFAZ'
+    )
+
+    class Meta:
+        verbose_name = 'Certificado Digital'
+        verbose_name_plural = 'Certificados Digitais'
+        ordering = ['-ativo', 'filial__nome']
+        unique_together = ('empresa', 'filial')
+
+    def __str__(self):
+        status = "Ativo" if self.ativo else "Inativo"
+        return f"{self.filial.nome} ({self.filial.cnpj}) - {status}"
+
+    def delete(self, *args, **kwargs):
+        # Remove o arquivo ao deletar o registro
+        if self.arquivo_pfx:
+            self.arquivo_pfx.delete(save=False)
+        super().delete(*args, **kwargs)
+
+    @property
+    def cnpj_formatado(self):
+        """Retorna o CNPJ da filial formatado"""
+        cnpj = self.filial.cnpj
+        if len(cnpj) == 14:
+            return f"{cnpj[:2]}.{cnpj[2:5]}.{cnpj[5:8]}/{cnpj[8:12]}-{cnpj[12:]}"
+        return cnpj
+
+    @property
+    def esta_vencido(self):
+        """Verifica se o certificado está vencido"""
+        from django.utils import timezone
+        return timezone.now().date() > self.data_validade
+
+
+class NotaFiscal(models.Model):
+    """
+    Armazena metadados de NF-e baixadas da SEFAZ.
+    O XML completo é armazenado em arquivo.
+    """
+    TIPO_CHOICES = [
+        ('nfe', 'NF-e - Nota Fiscal Eletrônica'),
+        ('cte', 'CT-e - Conhecimento de Transporte Eletrônico'),
+        ('nfce', 'NFC-e - Nota Fiscal ao Consumidor Eletrônica'),
+    ]
+
+    STATUS_CHOICES = [
+        ('pendente', 'Pendente de Análise'),
+        ('vinculado', 'Vinculado a Conta'),
+        ('importado', 'Importado como Conta'),
+        ('descartado', 'Descartado'),
+    ]
+
+    empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, related_name='notas_fiscais')
+    filial = models.ForeignKey(
+        Filial,
+        on_delete=models.CASCADE,
+        related_name='notas_fiscais',
+        help_text='CNPJ destinatário da nota'
+    )
+
+    # Dados da NF-e
+    chave_acesso = models.CharField(
+        max_length=44,
+        unique=True,
+        verbose_name='Chave de Acesso',
+        help_text='Chave de 44 dígitos da NF-e'
+    )
+    numero = models.CharField(
+        max_length=20,
+        verbose_name='Número',
+        help_text='Número da nota fiscal'
+    )
+    serie = models.CharField(
+        max_length=10,
+        blank=True,
+        verbose_name='Série'
+    )
+    tipo_documento = models.CharField(
+        max_length=10,
+        choices=TIPO_CHOICES,
+        default='nfe',
+        verbose_name='Tipo'
+    )
+
+    # Datas
+    data_emissao = models.DateTimeField(verbose_name='Data de Emissão')
+    data_entrada_saida = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name='Data Entrada/Saída'
+    )
+
+    # Emitente
+    emitente_cnpj = models.CharField(max_length=14, verbose_name='CNPJ Emitente')
+    emitente_nome = models.CharField(max_length=255, verbose_name='Razão Social Emitente')
+
+    # Valores
+    valor_total = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        verbose_name='Valor Total'
+    )
+    valor_desconto = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        default=0,
+        verbose_name='Desconto'
+    )
+    valor_liquido = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        verbose_name='Valor Líquido'
+    )
+
+    # Arquivo XML
+    arquivo_xml = models.FileField(
+        upload_to='notas_fiscais/%Y/%m/',
+        help_text='Arquivo XML da NF-e'
+    )
+
+    # NSU
+    nsu = models.CharField(
+        max_length=15,
+        blank=True,
+        verbose_name='NSU',
+        help_text='Número Sequencial Único da SEFAZ'
+    )
+
+    # Status e controle
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='pendente'
+    )
+    conta_pagar = models.ForeignKey(
+        ContaPagar,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='notas_fiscais',
+        help_text='Conta a Pagar vinculada'
+    )
+
+    observacoes = models.TextField(
+        blank=True,
+        help_text='Observações sobre a nota'
+    )
+
+    # Auditoria
+    importado_em = models.DateTimeField(auto_now_add=True)
+    importado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True
+    )
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Nota Fiscal Eletrônica'
+        verbose_name_plural = 'Notas Fiscais Eletrônicas'
+        ordering = ['-data_emissao']
+        indexes = [
+            models.Index(fields=['chave_acesso']),
+            models.Index(fields=['emitente_cnpj']),
+            models.Index(fields=['data_emissao']),
+            models.Index(fields=['status']),
+        ]
+
+    def __str__(self):
+        return f"NF-e {self.numero} - {self.emitente_nome} - R$ {self.valor_total}"
+
+    def save(self, *args, **kwargs):
+        # Uppercase em campos de texto
+        if self.emitente_nome:
+            self.emitente_nome = self.emitente_nome.upper()
+        if self.emitente_cnpj:
+            self.emitente_cnpj = re.sub(r'\D', '', self.emitente_cnpj)
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        # Remove o arquivo XML ao deletar
+        if self.arquivo_xml:
+            self.arquivo_xml.delete(save=False)
+        super().delete(*args, **kwargs)
+
+    @property
+    def chave_formatada(self):
+        """Retorna a chave de acesso formatada em grupos de 4"""
+        chave = self.chave_acesso
+        return ' '.join([chave[i:i+4] for i in range(0, len(chave), 4)])
+
+    @property
+    def cnpj_emitente_formatado(self):
+        """Retorna o CNPJ do emitente formatado"""
+        cnpj = self.emitente_cnpj
+        if len(cnpj) == 14:
+            return f"{cnpj[:2]}.{cnpj[2:5]}.{cnpj[5:8]}/{cnpj[8:12]}-{cnpj[12:]}"
+        return cnpj
+
+
+class ConfiguracaoNFe(models.Model):
+    """
+    Configurações para importação automática de notas fiscais.
+    Uma configuração por certificado digital.
+    """
+
+    STATUS_BUSCA_CHOICES = [
+        ('inativa', 'Inativa'),
+        ('ativa', 'Ativa'),
+        ('executando', 'Executando'),
+        ('erro', 'Erro'),
+        ('concluida', 'Concluída'),
+    ]
+
+    certificado = models.OneToOneField(
+        CertificadoDigital,
+        on_delete=models.CASCADE,
+        related_name='configuracao_nfe',
+        verbose_name='Certificado Digital'
+    )
+
+    # Configurações de busca automática
+    busca_automatica_ativa = models.BooleanField(
+        default=False,
+        verbose_name='Busca Automática Ativa',
+        help_text='Se ativo, o sistema buscará novas notas automaticamente a cada 4 horas'
+    )
+
+    # Configurações de busca histórica
+    busca_historica_ativa = models.BooleanField(
+        default=False,
+        verbose_name='Busca Histórica Ativa',
+        help_text='Se ativo, o sistema buscará notas antigas de forma incremental'
+    )
+
+    busca_historica_status = models.CharField(
+        max_length=20,
+        choices=STATUS_BUSCA_CHOICES,
+        default='inativa',
+        verbose_name='Status da Busca Histórica'
+    )
+
+    busca_historica_progresso = models.IntegerField(
+        default=0,
+        verbose_name='Progresso da Busca Histórica (%)',
+        help_text='Percentual de conclusão da busca histórica'
+    )
+
+    # Estatísticas
+    ultima_execucao = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name='Última Execução'
+    )
+
+    proximo_agendamento = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name='Próximo Agendamento'
+    )
+
+    total_notas_importadas = models.IntegerField(
+        default=0,
+        verbose_name='Total de Notas Importadas',
+        help_text='Total de notas importadas desde a ativação'
+    )
+
+    ultima_importacao_quantidade = models.IntegerField(
+        default=0,
+        verbose_name='Última Importação - Quantidade',
+        help_text='Quantidade de notas importadas na última execução'
+    )
+
+    # Controle de erros
+    ultimo_erro = models.TextField(
+        blank=True,
+        verbose_name='Último Erro'
+    )
+
+    data_ultimo_erro = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name='Data do Último Erro'
+    )
+
+    tentativas_erro = models.IntegerField(
+        default=0,
+        verbose_name='Tentativas com Erro',
+        help_text='Contador de tentativas consecutivas com erro'
+    )
+
+    # Auditoria
+    criado_em = models.DateTimeField(auto_now_add=True, verbose_name='Criado em')
+    atualizado_em = models.DateTimeField(auto_now=True, verbose_name='Atualizado em')
+
+    class Meta:
+        verbose_name = 'Configuração NFe'
+        verbose_name_plural = 'Configurações NFe'
+        db_table = 'configuracao_nfe'
+
+    def __str__(self):
+        status = "Ativa" if self.busca_automatica_ativa else "Inativa"
+        return f"Config NFe - {self.certificado.filial.nome} ({status})"
+
+    def registrar_execucao_sucesso(self, quantidade_importada):
+        """Registra execução bem-sucedida"""
+        from django.utils import timezone
+        self.ultima_execucao = timezone.now()
+        self.proximo_agendamento = timezone.now() + timezone.timedelta(hours=4)
+        self.ultima_importacao_quantidade = quantidade_importada
+        self.total_notas_importadas += quantidade_importada
+        self.tentativas_erro = 0
+        self.ultimo_erro = ''
+        self.save()
+
+    def registrar_erro(self, mensagem_erro):
+        """Registra erro na execução"""
+        from django.utils import timezone
+        self.ultimo_erro = mensagem_erro[:500]  # Limita tamanho
+        self.data_ultimo_erro = timezone.now()
+        self.tentativas_erro += 1
+
+        # Se tiver muitos erros consecutivos, desativa automaticamente
+        if self.tentativas_erro >= 5:
+            self.busca_automatica_ativa = False
+            self.ultimo_erro += '\n\n[SISTEMA] Busca automática desativada após 5 tentativas com erro.'
+
+        self.save()
+

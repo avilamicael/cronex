@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+
+{% block title %}Deletar NF-e - Cronex{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h1 class="h3 mb-4 text-gray-800">Confirmar Exclusão</h1>
+
+    <div class="card shadow">
+        <div class="card-body">
+            <div class="alert alert-danger">
+                <i class="fas fa-exclamation-triangle"></i>
+                <strong>Atenção!</strong> Esta ação não pode ser desfeita. O arquivo XML será removido permanentemente.
+            </div>
+
+            <p>Você tem certeza que deseja excluir esta nota fiscal?</p>
+            <ul>
+                <li><strong>Número:</strong> {{ nota.numero }}</li>
+                <li><strong>Emitente:</strong> {{ nota.emitente_nome }}</li>
+                <li><strong>Valor:</strong> R$ {{ nota.valor_total|floatformat:2 }}</li>
+                <li><strong>Chave:</strong> {{ nota.chave_acesso }}</li>
+            </ul>
+
+            <form method="post">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-danger">
+                    <i class="fas fa-trash"></i> Sim, Deletar
+                </button>
+                <a href="{% url 'nfe_lista' %}" class="btn btn-secondary">
+                    <i class="fas fa-times"></i> Cancelar
+                </a>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

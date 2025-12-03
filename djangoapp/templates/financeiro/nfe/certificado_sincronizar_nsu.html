@@ -1,0 +1,48 @@
+{% extends 'base.html' %}
+
+{% block title %}Sincronizar NSU - Cronex{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h1 class="h3 mb-4 text-gray-800">Sincronizar NSU com SEFAZ</h1>
+
+    <div class="card shadow">
+        <div class="card-body">
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i>
+                <strong>Informação:</strong> Esta operação consultará a SEFAZ para obter o NSU atual sem baixar documentos.
+                Use esta função quando receber erro de "Consumo Indevido" ou quando o NSU estiver desatualizado.
+            </div>
+
+            <p>Certificado selecionado:</p>
+            <ul>
+                <li><strong>Filial:</strong> {{ certificado.filial.nome }}</li>
+                <li><strong>CNPJ:</strong> {{ certificado.cnpj_formatado }}</li>
+                <li><strong>UF:</strong> {{ certificado.get_uf_codigo_display }}</li>
+                <li><strong>NSU Atual:</strong> <code>{{ certificado.ultimo_nsu }}</code></li>
+            </ul>
+
+            <div class="alert alert-warning">
+                <i class="fas fa-clock"></i>
+                <strong>Importante:</strong> Se você recebeu o erro 656 "Consumo Indevido", aguarde alguns minutos antes de tentar novamente.
+                Esta operação atualizará o NSU para o valor mais recente da SEFAZ.
+            </div>
+
+            <p class="text-muted small">
+                <i class="fas fa-sync"></i>
+                A sincronização consultará a SEFAZ e atualizará o NSU armazenado para o valor correto, permitindo que você faça novas consultas.
+            </p>
+
+            <form method="post">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-sync"></i> Sincronizar NSU
+                </button>
+                <a href="{% url 'certificados_lista' %}" class="btn btn-secondary">
+                    <i class="fas fa-times"></i> Cancelar
+                </a>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

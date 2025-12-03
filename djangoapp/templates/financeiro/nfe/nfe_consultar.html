@@ -1,0 +1,82 @@
+{% extends 'base.html' %}
+
+{% block title %}Consultar NF-e - Cronex{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h1 class="h3 mb-4 text-gray-800">
+        <i class="fas fa-cloud-download-alt text-primary"></i> Consultar NF-e na SEFAZ
+    </h1>
+
+    {% if messages %}
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags }} alert-dismissible fade show">
+            {{ message }}
+            <button type="button" class="close" data-dismiss="alert"><span>&times;</span></button>
+        </div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card shadow">
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+
+                        {% for field in form %}
+                        <div class="form-group">
+                            <label>{{ field.label }}</label>
+                            {{ field }}
+                            {% if field.help_text %}
+                                <small class="form-text text-muted">{{ field.help_text }}</small>
+                            {% endif %}
+                            {% if field.errors %}
+                                <div class="text-danger">{{ field.errors }}</div>
+                            {% endif %}
+
+                            {% if field.name == 'buscar_novos' %}
+                                <div class="alert alert-warning mt-2 small">
+                                    <i class="fas fa-exclamation-triangle"></i>
+                                    <strong>Importante - Regras da SEFAZ:</strong>
+                                    <ul class="mb-0 mt-2">
+                                        <li><strong>Marcado:</strong> Busca apenas novos documentos desde a última consulta (recomendado)</li>
+                                        <li><strong>Desmarcado:</strong> Tenta buscar tudo desde o início</li>
+                                        <li class="text-danger"><strong>Atenção:</strong> A SEFAZ bloqueia consultas repetidas do zero. Aguarde 1 hora entre consultas completas.</li>
+                                    </ul>
+                                </div>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+
+                        <hr>
+                        <button type="submit" class="btn btn-primary btn-lg">
+                            <i class="fas fa-search"></i> Buscar Notas Fiscais
+                        </button>
+                        <a href="{% url 'nfe_lista' %}" class="btn btn-secondary">
+                            Ver Notas Importadas
+                        </a>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card shadow border-left-info">
+                <div class="card-body">
+                    <h6 class="font-weight-bold text-info">
+                        <i class="fas fa-info-circle"></i> Como Funciona
+                    </h6>
+                    <ul class="small mb-0">
+                        <li>Selecione o certificado (CNPJ)</li>
+                        <li>Defina o período de busca</li>
+                        <li>O sistema consultará a SEFAZ</li>
+                        <li>Notas serão importadas automaticamente</li>
+                        <li>XMLs ficam disponíveis para download</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

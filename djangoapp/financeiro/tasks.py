@@ -369,3 +369,366 @@ def gerar_relatorio_faturamento_mensal(mes_ref=None, ano_ref=None):
 
     print(f"\n[Relatório] Processo finalizado!")
     return f"Relatórios gerados para {mes:02d}/{ano}"
+
+
+# ========================================
+# TASKS PARA IMPORTAÇÃO AUTOMÁTICA DE NFE
+# ========================================
+
+@shared_task(name="Buscar notas fiscais automaticamente")
+def buscar_notas_automaticamente():
+    """
+    Task que busca novas notas fiscais na SEFAZ de forma automática.
+    Roda a cada 4 horas para todos os certificados com busca automática ativa.
+    """
+    from financeiro.models import ConfiguracaoNFe, CertificadoDigital, NotaFiscal
+    from financeiro.crypto import decrypt_password
+    from financeiro.nfe.sefaz_client import SefazClient
+    from django.core.files.base import ContentFile
+    from django.db import transaction
+    from django.utils import timezone
+
+    print(f"[NFe Auto] Iniciando busca automática - {timezone.now()}")
+
+    # Busca todas as configurações ativas
+    configs = ConfiguracaoNFe.objects.filter(
+        busca_automatica_ativa=True,
+        certificado__ativo=True
+    ).select_related('certificado', 'certificado__filial', 'certificado__empresa')
+
+    total_configs = configs.count()
+    print(f"[NFe Auto] Encontradas {total_configs} configuração(ões) ativa(s)")
+
+    if total_configs == 0:
+        print("[NFe Auto] Nenhuma configuração ativa. Finalizando.")
+        return "Nenhuma configuração ativa"
+
+    resultados = []
+
+    for config in configs:
+        certificado = config.certificado
+        empresa = certificado.empresa
+        filial = certificado.filial
+
+        print(f"\n[NFe Auto] Processando: {filial.nome} (CNPJ: {filial.cnpj})")
+
+        try:
+            # Verifica se certificado está vencido
+            if certificado.esta_vencido:
+                erro = f"Certificado vencido em {certificado.data_validade}"
+                print(f"[NFe Auto] ❌ {erro}")
+                config.registrar_erro(erro)
+                resultados.append(f"❌ {filial.nome}: {erro}")
+                continue
+
+            # Descriptografa senha
+            senha = decrypt_password(certificado.senha_encrypted)
+
+            # Inicializa cliente SEFAZ
+            client = SefazClient(
+                certificado_path=certificado.arquivo_pfx.path,
+                certificado_senha=senha,
+                cnpj=filial.cnpj,
+                uf_cod=certificado.uf_codigo
+            )
+
+            # Busca novos documentos desde último NSU
+            nsu_inicial = certificado.ultimo_nsu
+            print(f"[NFe Auto] Buscando desde NSU: {nsu_inicial}")
+
+            # Faz consulta inicial
+            resposta_xml = client.consultar_dfe(nsu_inicial)
+            docs_temp, ult_nsu, max_nsu, mensagem = client.extrair_documentos(resposta_xml)
+
+            # Verifica erro 656 (Consumo Indevido)
+            if "Consumo Indevido" in (mensagem or ""):
+                erro = "Erro 656 - Consumo Indevido da SEFAZ. Aguardando próximo ciclo."
+                print(f"[NFe Auto] ⚠️ {erro}")
+                # Atualiza NSU se retornado
+                if ult_nsu:
+                    certificado.ultimo_nsu = ult_nsu
+                    certificado.save(update_fields=['ultimo_nsu'])
+                config.registrar_erro(erro)
+                resultados.append(f"⚠️ {filial.nome}: {erro}")
+                continue
+
+            # Busca todos os documentos
+            documentos = client.buscar_todos_documentos(nsu_inicial)
+            total_docs = len(documentos)
+            print(f"[NFe Auto] Encontrados {total_docs} documento(s)")
+
+            if total_docs == 0:
+                print(f"[NFe Auto] ✓ Nenhum documento novo")
+                # Atualiza NSU mesmo sem documentos
+                if ult_nsu:
+                    certificado.ultimo_nsu = ult_nsu
+                    certificado.save(update_fields=['ultimo_nsu'])
+                config.registrar_execucao_sucesso(0)
+                resultados.append(f"✓ {filial.nome}: Nenhum documento novo")
+                continue
+
+            # Importa documentos
+            importados = 0
+            duplicados = 0
+
+            with transaction.atomic():
+                for xml in documentos:
+                    # Verifica se é resumo e busca XML completo
+                    xml_final = xml
+                    if client.eh_resumo_nfe(xml):
+                        chave = client.extrair_chave_resumo(xml)
+                        if chave:
+                            print(f"[NFe Auto] Resumo detectado, buscando completo: {chave}")
+                            xml_completo = client.buscar_xml_completo(chave)
+                            if xml_completo:
+                                xml_final = xml_completo
+
+                    metadados = client.extrair_metadados_nfe(xml_final)
+
+                    # Verifica duplicata
+                    if NotaFiscal.objects.filter(chave_acesso=metadados['chave_acesso']).exists():
+                        duplicados += 1
+                        continue
+
+                    # Cria registro
+                    nota = NotaFiscal(
+                        empresa=empresa,
+                        filial=filial,
+                        chave_acesso=metadados['chave_acesso'],
+                        numero=metadados['numero'],
+                        serie=metadados['serie'],
+                        data_emissao=metadados['data_emissao'],
+                        emitente_cnpj=metadados['emitente_cnpj'],
+                        emitente_nome=metadados['emitente_nome'],
+                        valor_total=metadados['valor_total'],
+                        valor_desconto=metadados['valor_desconto'],
+                        valor_liquido=metadados['valor_liquido'],
+                        nsu=metadados['nsu'],
+                        importado_por=None  # Importação automática
+                    )
+
+                    # Salva XML
+                    xml_bytes = client.xml_to_string(xml_final)
+                    nota.arquivo_xml.save(
+                        f"nfe_{metadados['chave_acesso']}.xml",
+                        ContentFile(xml_bytes),
+                        save=False
+                    )
+
+                    nota.save()
+                    importados += 1
+
+                # Atualiza último NSU
+                if ult_nsu:
+                    certificado.ultimo_nsu = ult_nsu
+                    certificado.save(update_fields=['ultimo_nsu'])
+
+            # Registra sucesso
+            config.registrar_execucao_sucesso(importados)
+            msg = f"✅ {filial.nome}: {importados} importada(s)"
+            if duplicados > 0:
+                msg += f" ({duplicados} duplicada(s))"
+            print(f"[NFe Auto] {msg}")
+            resultados.append(msg)
+
+        except Exception as e:
+            erro = f"Erro: {str(e)[:200]}"
+            print(f"[NFe Auto] ❌ {filial.nome}: {erro}")
+            import traceback
+            traceback.print_exc()
+            config.registrar_erro(erro)
+            resultados.append(f"❌ {filial.nome}: {erro}")
+
+    print(f"\n[NFe Auto] Finalizado - {timezone.now()}")
+    return "\n".join(resultados)
+
+
+@shared_task(name="Buscar histórico de notas fiscais")
+def buscar_historico_notas():
+    """
+    Task que busca histórico completo de notas fiscais de forma incremental.
+    Evita erro 656 fazendo pausas entre as buscas.
+    """
+    from financeiro.models import ConfiguracaoNFe, CertificadoDigital, NotaFiscal
+    from financeiro.crypto import decrypt_password
+    from financeiro.nfe.sefaz_client import SefazClient
+    from django.core.files.base import ContentFile
+    from django.db import transaction
+    from django.utils import timezone
+    import time
+
+    print(f"[NFe Histórico] Iniciando busca histórica - {timezone.now()}")
+
+    # Busca configurações com busca histórica ativa
+    configs = ConfiguracaoNFe.objects.filter(
+        busca_historica_ativa=True,
+        busca_historica_status__in=['ativa', 'executando'],
+        certificado__ativo=True
+    ).select_related('certificado', 'certificado__filial', 'certificado__empresa')
+
+    total_configs = configs.count()
+    print(f"[NFe Histórico] Encontradas {total_configs} configuração(ões) ativa(s)")
+
+    if total_configs == 0:
+        print("[NFe Histórico] Nenhuma configuração ativa. Finalizando.")
+        return "Nenhuma configuração ativa"
+
+    resultados = []
+
+    for config in configs:
+        certificado = config.certificado
+        empresa = certificado.empresa
+        filial = certificado.filial
+
+        print(f"\n[NFe Histórico] Processando: {filial.nome}")
+
+        try:
+            # Marca como executando
+            config.busca_historica_status = 'executando'
+            config.save()
+
+            # Verifica se certificado está vencido
+            if certificado.esta_vencido:
+                erro = f"Certificado vencido em {certificado.data_validade}"
+                print(f"[NFe Histórico] ❌ {erro}")
+                config.busca_historica_status = 'erro'
+                config.registrar_erro(erro)
+                config.save()
+                resultados.append(f"❌ {filial.nome}: {erro}")
+                continue
+
+            # Descriptografa senha
+            senha = decrypt_password(certificado.senha_encrypted)
+
+            # Inicializa cliente SEFAZ
+            client = SefazClient(
+                certificado_path=certificado.arquivo_pfx.path,
+                certificado_senha=senha,
+                cnpj=filial.cnpj,
+                uf_cod=certificado.uf_codigo
+            )
+
+            # Busca incremental: máximo 50 documentos por execução
+            # Isso evita erro 656 e permite processar gradualmente
+            nsu_inicial = "000000000000000"  # Começa do início
+            print(f"[NFe Histórico] Buscando desde NSU: {nsu_inicial}")
+
+            # Consulta inicial
+            resposta_xml = client.consultar_dfe(nsu_inicial)
+            docs_temp, ult_nsu, max_nsu, mensagem = client.extrair_documentos(resposta_xml)
+
+            # Verifica erro 656
+            if "Consumo Indevido" in (mensagem or ""):
+                erro = "Erro 656 - Aguardando próximo ciclo para continuar."
+                print(f"[NFe Histórico] ⚠️ {erro}")
+                config.registrar_erro(erro)
+                resultados.append(f"⚠️ {filial.nome}: {erro}")
+                # Mantém status como executando para tentar novamente
+                continue
+
+            # Busca documentos limitados (evita consumo excessivo)
+            documentos = []
+            iteracoes = 0
+            max_iteracoes = 5  # Limita a 5 iterações por execução
+            nsu_atual = nsu_inicial
+
+            while iteracoes < max_iteracoes:
+                iteracoes += 1
+                resposta = client.consultar_dfe(nsu_atual)
+                docs, novo_nsu, max_nsu_resp, msg = client.extrair_documentos(resposta)
+
+                if not docs:
+                    break
+
+                documentos.extend(docs)
+                nsu_atual = novo_nsu
+
+                if novo_nsu == max_nsu_resp:
+                    break
+
+                # Pausa entre requisições (evita 656)
+                time.sleep(2)
+
+            total_docs = len(documentos)
+            print(f"[NFe Histórico] Encontrados {total_docs} documento(s)")
+
+            if total_docs == 0:
+                print(f"[NFe Histórico] ✓ Busca histórica concluída")
+                config.busca_historica_status = 'concluida'
+                config.busca_historica_progresso = 100
+                config.save()
+                resultados.append(f"✓ {filial.nome}: Busca histórica concluída")
+                continue
+
+            # Importa documentos
+            importados = 0
+            duplicados = 0
+
+            with transaction.atomic():
+                for xml in documentos:
+                    # Processa XML (mesmo código da busca automática)
+                    xml_final = xml
+                    if client.eh_resumo_nfe(xml):
+                        chave = client.extrair_chave_resumo(xml)
+                        if chave:
+                            xml_completo = client.buscar_xml_completo(chave)
+                            if xml_completo:
+                                xml_final = xml_completo
+
+                    metadados = client.extrair_metadados_nfe(xml_final)
+
+                    if NotaFiscal.objects.filter(chave_acesso=metadados['chave_acesso']).exists():
+                        duplicados += 1
+                        continue
+
+                    nota = NotaFiscal(
+                        empresa=empresa,
+                        filial=filial,
+                        chave_acesso=metadados['chave_acesso'],
+                        numero=metadados['numero'],
+                        serie=metadados['serie'],
+                        data_emissao=metadados['data_emissao'],
+                        emitente_cnpj=metadados['emitente_cnpj'],
+                        emitente_nome=metadados['emitente_nome'],
+                        valor_total=metadados['valor_total'],
+                        valor_desconto=metadados['valor_desconto'],
+                        valor_liquido=metadados['valor_liquido'],
+                        nsu=metadados['nsu'],
+                        importado_por=None
+                    )
+
+                    xml_bytes = client.xml_to_string(xml_final)
+                    nota.arquivo_xml.save(
+                        f"nfe_{metadados['chave_acesso']}.xml",
+                        ContentFile(xml_bytes),
+                        save=False
+                    )
+
+                    nota.save()
+                    importados += 1
+
+            # Atualiza progresso (estimativa baseada em NSU)
+            if max_nsu and ult_nsu:
+                progresso = (int(ult_nsu) / int(max_nsu)) * 100
+                config.busca_historica_progresso = min(int(progresso), 99)
+
+            config.save()
+
+            msg = f"🔄 {filial.nome}: {importados} importada(s) ({config.busca_historica_progresso}%)"
+            if duplicados > 0:
+                msg += f" ({duplicados} duplicada(s))"
+            print(f"[NFe Histórico] {msg}")
+            resultados.append(msg)
+
+        except Exception as e:
+            erro = f"Erro: {str(e)[:200]}"
+            print(f"[NFe Histórico] ❌ {filial.nome}: {erro}")
+            import traceback
+            traceback.print_exc()
+            config.busca_historica_status = 'erro'
+            config.registrar_erro(erro)
+            config.save()
+            resultados.append(f"❌ {filial.nome}: {erro}")
+
+    print(f"\n[NFe Histórico] Finalizado - {timezone.now()}")
+    return "\n".join(resultados)

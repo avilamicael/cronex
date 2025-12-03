@@ -80,6 +80,17 @@
                         <a class="collapse-item" href="{% url 'lancar_conta_pagar' %}">Incluir Contas a Pagar</a>
                         <a class="collapse-item" href="{% url 'listar_contas_pagar' %}">Contas a Pagar</a>
                         <a class="collapse-item" href="{% url 'concilia_contas' %}">Conciliar Contas</a>
+                        <div class="collapse-divider"></div>
+                        <h6 class="collapse-header">Notas Fiscais:</h6>
+                        <a class="collapse-item" href="{% url 'certificados_lista' %}">
+                            <i class="fas fa-certificate fa-sm mr-1"></i> Certificados Digitais
+                        </a>
+                        <a class="collapse-item" href="{% url 'nfe_consultar' %}">
+                            <i class="fas fa-cloud-download-alt fa-sm mr-1"></i> Consultar NF-e
+                        </a>
+                        <a class="collapse-item" href="{% url 'nfe_lista' %}">
+                            <i class="fas fa-file-invoice fa-sm mr-1"></i> Listar NF-e
+                        </a>
                     </div>
                 </div>
             </li>

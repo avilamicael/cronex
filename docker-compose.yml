@@ -22,6 +22,8 @@ services:
     command: celery -A project worker -l info
     volumes:
       - ./djangoapp:/djangoapp
+      - ./data/web/static:/data/web/static/
+      - ./data/web/media:/data/web/media/
     env_file:
       - ./dotenv_files/.env
     depends_on:
@@ -35,6 +37,8 @@ services:
     command: celery -A project beat -l info --scheduler django_celery_beat.schedulers:DatabaseScheduler
     volumes:
       - ./djangoapp:/djangoapp
+      - ./data/web/static:/data/web/static/
+      - ./data/web/media:/data/web/media/
     env_file:
       - ./dotenv_files/.env
     depends_on:

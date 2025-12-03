@@ -1,0 +1,35 @@
+{% extends 'base.html' %}
+
+{% block title %}Deletar Certificado - Cronex{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h1 class="h3 mb-4 text-gray-800">Confirmar Exclusão</h1>
+
+    <div class="card shadow">
+        <div class="card-body">
+            <div class="alert alert-warning">
+                <i class="fas fa-exclamation-triangle"></i>
+                <strong>Atenção!</strong> Esta ação não pode ser desfeita.
+            </div>
+
+            <p>Você tem certeza que deseja excluir o certificado:</p>
+            <ul>
+                <li><strong>Filial:</strong> {{ certificado.filial.nome }}</li>
+                <li><strong>CNPJ:</strong> {{ certificado.cnpj_formatado }}</li>
+                <li><strong>UF:</strong> {{ certificado.get_uf_codigo_display }}</li>
+            </ul>
+
+            <form method="post">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-danger">
+                    <i class="fas fa-trash"></i> Sim, Deletar
+                </button>
+                <a href="{% url 'certificados_lista' %}" class="btn btn-secondary">
+                    <i class="fas fa-times"></i> Cancelar
+                </a>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

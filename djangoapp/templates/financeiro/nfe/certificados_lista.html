@@ -1,0 +1,179 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Certificados Digitais - Cronex{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Cabeçalho -->
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <h1 class="h3 mb-0 text-gray-800">
+            <i class="fas fa-certificate text-primary"></i> Certificados Digitais
+        </h1>
+        <div>
+            <a href="{% url 'nfe_status_importacao' %}" class="btn btn-success mr-2">
+                <i class="fas fa-chart-line"></i> Status de Importação
+            </a>
+            <a href="{% url 'nfe_lista' %}" class="btn btn-info mr-2">
+                <i class="fas fa-file-invoice"></i> Ver Notas
+            </a>
+            <a href="{% url 'certificado_adicionar' %}" class="btn btn-primary">
+                <i class="fas fa-plus"></i> Adicionar Certificado
+            </a>
+        </div>
+    </div>
+
+    <!-- Mensagens -->
+    {% if messages %}
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="close" data-dismiss="alert">
+                <span>&times;</span>
+            </button>
+        </div>
+        {% endfor %}
+    {% endif %}
+
+    <!-- Lista de Certificados -->
+    <div class="card shadow mb-4">
+        <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-primary">Certificados Cadastrados</h6>
+        </div>
+        <div class="card-body">
+            {% if certificados %}
+                <div class="table-responsive">
+                    <table class="table table-bordered table-hover" width="100%">
+                        <thead>
+                            <tr>
+                                <th>Filial / CNPJ</th>
+                                <th>UF</th>
+                                <th>Validade</th>
+                                <th>Status</th>
+                                <th>Busca Automática</th>
+                                <th>Último NSU</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for cert in certificados %}
+                            <tr>
+                                <td>
+                                    <strong>{{ cert.filial.nome }}</strong><br>
+                                    <small class="text-muted">{{ cert.cnpj_formatado }}</small>
+                                </td>
+                                <td>{{ cert.get_uf_codigo_display }}</td>
+                                <td>
+                                    {{ cert.data_validade|date:"d/m/Y" }}
+                                    {% if cert.esta_vencido %}
+                                        <span class="badge badge-danger">Vencido</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if cert.ativo %}
+                                        <span class="badge badge-success">Ativo</span>
+                                    {% else %}
+                                        <span class="badge badge-secondary">Inativo</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if cert.config %}
+                                        {% if cert.config.busca_automatica_ativa %}
+                                            <span class="badge badge-success">
+                                                <i class="fas fa-check-circle"></i> Ativa
+                                            </span>
+                                            <br><small class="text-muted">{{ cert.config.total_notas_importadas }} notas</small>
+                                        {% else %}
+                                            <span class="badge badge-secondary">
+                                                <i class="fas fa-times-circle"></i> Inativa
+                                            </span>
+                                        {% endif %}
+                                    {% else %}
+                                        <span class="badge badge-warning">Sem config</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <small class="text-muted">{{ cert.ultimo_nsu }}</small>
+                                    <br>
+                                    <div class="mt-1">
+                                        <a href="{% url 'certificado_sincronizar_nsu' cert.pk %}" class="badge badge-primary" title="Sincronizar NSU com SEFAZ">
+                                            <i class="fas fa-sync"></i> Sincronizar
+                                        </a>
+                                        {% if cert.ultimo_nsu != "000000000000000" %}
+                                        <a href="{% url 'certificado_resetar_nsu' cert.pk %}" class="badge badge-info" title="Resetar NSU">
+                                            <i class="fas fa-redo"></i> Resetar
+                                        </a>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                                <td>
+                                    <a href="{% url 'certificado_editar' cert.pk %}"
+                                       class="btn btn-sm btn-warning" title="Editar">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    <a href="{% url 'certificado_deletar' cert.pk %}"
+                                       class="btn btn-sm btn-danger" title="Deletar">
+                                        <i class="fas fa-trash"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <div class="text-center py-5">
+                    <i class="fas fa-certificate fa-3x text-muted mb-3"></i>
+                    <p class="text-muted">Nenhum certificado cadastrado.</p>
+                    <a href="{% url 'certificado_adicionar' %}" class="btn btn-primary">
+                        <i class="fas fa-plus"></i> Adicionar Primeiro Certificado
+                    </a>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Card de Informações -->
+    <div class="card shadow mb-4">
+        <div class="card-header py-3 bg-success text-white">
+            <h6 class="m-0 font-weight-bold">
+                <i class="fas fa-robot"></i> Novo: Importação Automática de Notas Fiscais
+            </h6>
+        </div>
+        <div class="card-body">
+            <p class="mb-3">
+                <strong>Agora o sistema busca e salva suas notas fiscais automaticamente!</strong>
+            </p>
+            <ol>
+                <li>Clique em <strong>"Status de Importação"</strong> acima</li>
+                <li>Ative a busca automática para seus certificados</li>
+                <li>O sistema buscará novas notas <strong>a cada 4 horas</strong></li>
+                <li>As notas ficam salvas permanentemente no sistema</li>
+                <li>Consulte em <strong>"Ver Notas"</strong> quando precisar</li>
+            </ol>
+            <div class="alert alert-info mb-0">
+                <i class="fas fa-lightbulb"></i> <strong>Dica:</strong> Ative também a <strong>Busca Histórica</strong> para importar notas antigas automaticamente!
+            </div>
+        </div>
+    </div>
+
+    <!-- Card de Informações Técnicas -->
+    <div class="card shadow mb-4">
+        <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-info">
+                <i class="fas fa-info-circle"></i> Informações Técnicas
+            </h6>
+        </div>
+        <div class="card-body">
+            <ul class="mb-0">
+                <li>Os certificados digitais são utilizados para consultar notas fiscais eletrônicas na SEFAZ.</li>
+                <li>Apenas certificados do tipo A1 (arquivo .pfx ou .p12) são aceitos.</li>
+                <li>A senha do certificado é criptografada e armazenada de forma segura.</li>
+                <li>Um certificado por CNPJ/Filial pode ser cadastrado.</li>
+                <li><strong>NSU (Número Sequencial Único):</strong> Controla quais documentos já foram consultados.</li>
+                <li><strong>Busca Manual:</strong> Ainda disponível em caso de necessidade (acesse "Consultar Notas" no menu).</li>
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}

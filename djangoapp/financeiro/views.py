@@ -13,6 +13,7 @@ from core.decorators import grupos_necessarios
 from .forms import ConciliacaoForm, ContaOFXForm
 from .utils import processar_ofx
 from .recorrencia import criar_contas_recorrentes
+from django.db.models import Q
 
 @grupos_necessarios("Administrador", "Financeiro")
 @login_required
@@ -213,7 +214,8 @@ def concilia_contas_view(request):
             ano = contas_banco[0]['data'].year
 
             contas_sistema = ContaPagar.objects.filter(
-                filial=filial,
+                Q(conta_bancaria_pagamento=filial) | 
+                Q(conta_bancaria_pagamento__isnull=True, filial=filial),
                 status='pago',
                 data_pagamento__month=mes,
                 data_pagamento__year=ano

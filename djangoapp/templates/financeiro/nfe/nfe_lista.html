@@ -1,0 +1,139 @@
+{% extends 'base.html' %}
+
+{% block title %}Notas Fiscais - Cronex{% endblock %}
+
+{% block extra_head %}
+<style>
+    .nota-item:hover { background-color: #f8f9fc; }
+    .checkbox-nota { transform: scale(1.2); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <h1 class="h3 mb-0 text-gray-800">
+            <i class="fas fa-file-invoice text-primary"></i> Notas Fiscais Eletrônicas
+        </h1>
+        <div>
+            <a href="{% url 'nfe_consultar' %}" class="btn btn-primary">
+                <i class="fas fa-cloud-download-alt"></i> Consultar SEFAZ
+            </a>
+            <button onclick="downloadSelecionados()" class="btn btn-success" id="btnDownload" disabled>
+                <i class="fas fa-download"></i> Download Selecionados
+            </button>
+        </div>
+    </div>
+
+    <!-- Filtros -->
+    <div class="card shadow mb-4">
+        <div class="card-body">
+            <form method="get" class="form-row align-items-end">
+                {% for field in filtro_form %}
+                <div class="col-md-2 mb-2">
+                    <label class="small">{{ field.label }}</label>
+                    {{ field }}
+                </div>
+                {% endfor %}
+                <div class="col-md-2 mb-2">
+                    <button type="submit" class="btn btn-primary btn-block">
+                        <i class="fas fa-filter"></i> Filtrar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Lista de Notas -->
+    <div class="card shadow">
+        <div class="card-body">
+            {% if notas %}
+                <p class="text-muted">{{ notas|length }} nota(s) encontrada(s)</p>
+
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th width="40">
+                                    <input type="checkbox" id="selectAll" class="checkbox-nota">
+                                </th>
+                                <th>Número/Série</th>
+                                <th>Emissão</th>
+                                <th>Emitente</th>
+                                <th>Valor</th>
+                                <th>Status</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for nota in notas %}
+                            <tr class="nota-item">
+                                <td>
+                                    <input type="checkbox" class="checkbox-nota nota-checkbox" value="{{ nota.id }}">
+                                </td>
+                                <td>
+                                    <strong>{{ nota.numero }}</strong>
+                                    {% if nota.serie %}/{{ nota.serie }}{% endif %}
+                                </td>
+                                <td>{{ nota.data_emissao|date:"d/m/Y H:i" }}</td>
+                                <td>
+                                    {{ nota.emitente_nome|truncatechars:40 }}<br>
+                                    <small class="text-muted">{{ nota.cnpj_emitente_formatado }}</small>
+                                </td>
+                                <td><strong>R$ {{ nota.valor_total|floatformat:2 }}</strong></td>
+                                <td>
+                                    <span class="badge badge-{% if nota.status == 'pendente' %}warning{% elif nota.status == 'vinculado' %}info{% elif nota.status == 'importado' %}success{% else %}secondary{% endif %}">
+                                        {{ nota.get_status_display }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <a href="{% url 'nfe_detalhes' nota.pk %}" class="btn btn-sm btn-info" title="Detalhes">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    <a href="{% url 'nfe_download_xml' nota.pk %}" class="btn btn-sm btn-success" title="Download XML">
+                                        <i class="fas fa-download"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <div class="text-center py-5">
+                    <i class="fas fa-file-invoice fa-3x text-muted mb-3"></i>
+                    <p class="text-muted">Nenhuma nota fiscal encontrada.</p>
+                    <a href="{% url 'nfe_consultar' %}" class="btn btn-primary">
+                        <i class="fas fa-cloud-download-alt"></i> Consultar SEFAZ
+                    </a>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+// Selecionar todos
+document.getElementById('selectAll')?.addEventListener('change', function() {
+    document.querySelectorAll('.nota-checkbox').forEach(cb => cb.checked = this.checked);
+    updateDownloadButton();
+});
+
+// Atualizar botão ao selecionar
+document.querySelectorAll('.nota-checkbox').forEach(cb => {
+    cb.addEventListener('change', updateDownloadButton);
+});
+
+function updateDownloadButton() {
+    const checked = document.querySelectorAll('.nota-checkbox:checked').length;
+    document.getElementById('btnDownload').disabled = checked === 0;
+}
+
+function downloadSelecionados() {
+    const ids = Array.from(document.querySelectorAll('.nota-checkbox:checked')).map(cb => cb.value);
+    if (ids.length > 0) {
+        window.location.href = `{% url 'nfe_download_massa' %}?notas=${ids.join('&notas=')}`;
+    }
+}
+</script>
+{% endblock %}

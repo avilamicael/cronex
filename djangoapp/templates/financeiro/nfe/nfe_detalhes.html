@@ -1,0 +1,126 @@
+{% extends 'base.html' %}
+
+{% block title %}NF-e {{ nota.numero }} - Cronex{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <h1 class="h3 mb-0 text-gray-800">Detalhes da NF-e</h1>
+        <div>
+            <a href="{% url 'nfe_download_xml' nota.pk %}" class="btn btn-success">
+                <i class="fas fa-download"></i> Download XML
+            </a>
+            <a href="{% url 'nfe_lista' %}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> Voltar
+            </a>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Informações da Nota</h6>
+                </div>
+                <div class="card-body">
+                    <table class="table table-borderless">
+                        <tr>
+                            <th width="200">Número:</th>
+                            <td><strong>{{ nota.numero }}</strong></td>
+                        </tr>
+                        <tr>
+                            <th>Série:</th>
+                            <td>{{ nota.serie|default:"-" }}</td>
+                        </tr>
+                        <tr>
+                            <th>Data de Emissão:</th>
+                            <td>{{ nota.data_emissao|date:"d/m/Y H:i:s" }}</td>
+                        </tr>
+                        <tr>
+                            <th>Chave de Acesso:</th>
+                            <td><code>{{ nota.chave_formatada }}</code></td>
+                        </tr>
+                        <tr>
+                            <th>NSU:</th>
+                            <td>{{ nota.nsu|default:"-" }}</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Emitente</h6>
+                </div>
+                <div class="card-body">
+                    <p class="mb-1"><strong>{{ nota.emitente_nome }}</strong></p>
+                    <p class="text-muted mb-0">CNPJ: {{ nota.cnpj_emitente_formatado }}</p>
+                </div>
+            </div>
+
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Destinatário</h6>
+                </div>
+                <div class="card-body">
+                    <p class="mb-1"><strong>{{ nota.filial.nome }}</strong></p>
+                    <p class="text-muted mb-0">CNPJ: {{ nota.filial.cnpj }}</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card shadow border-left-primary mb-4">
+                <div class="card-body">
+                    <h6 class="font-weight-bold text-primary">Valores</h6>
+                    <table class="table table-sm table-borderless">
+                        <tr>
+                            <td>Valor Total:</td>
+                            <td class="text-right"><strong>R$ {{ nota.valor_total|floatformat:2 }}</strong></td>
+                        </tr>
+                        <tr>
+                            <td>Desconto:</td>
+                            <td class="text-right">R$ {{ nota.valor_desconto|floatformat:2 }}</td>
+                        </tr>
+                        <tr class="border-top">
+                            <td><strong>Valor Líquido:</strong></td>
+                            <td class="text-right"><strong>R$ {{ nota.valor_liquido|floatformat:2 }}</strong></td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+
+            <div class="card shadow border-left-info mb-4">
+                <div class="card-body">
+                    <h6 class="font-weight-bold text-info">Status</h6>
+                    <p>
+                        <span class="badge badge-{% if nota.status == 'pendente' %}warning{% elif nota.status == 'vinculado' %}info{% elif nota.status == 'importado' %}success{% else %}secondary{% endif %} p-2">
+                            {{ nota.get_status_display }}
+                        </span>
+                    </p>
+                    {% if nota.conta_pagar %}
+                    <p class="mb-0"><small>Vinculado à conta: <strong>{{ nota.conta_pagar }}</strong></small></p>
+                    {% endif %}
+                </div>
+            </div>
+
+            {% if nota.observacoes %}
+            <div class="card shadow mb-4">
+                <div class="card-body">
+                    <h6 class="font-weight-bold">Observações</h6>
+                    <p class="mb-0">{{ nota.observacoes }}</p>
+                </div>
+            </div>
+            {% endif %}
+
+            <div class="card shadow mb-4">
+                <div class="card-body">
+                    <h6 class="font-weight-bold">Auditoria</h6>
+                    <p class="mb-1"><small>Importado em: {{ nota.importado_em|date:"d/m/Y H:i" }}</small></p>
+                    <p class="mb-0"><small>Por: {{ nota.importado_por.get_full_name|default:nota.importado_por.username }}</small></p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

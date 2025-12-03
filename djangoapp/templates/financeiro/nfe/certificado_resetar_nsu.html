@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+
+{% block title %}Resetar NSU - Cronex{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h1 class="h3 mb-4 text-gray-800">Resetar NSU do Certificado</h1>
+
+    <div class="card shadow">
+        <div class="card-body">
+            <div class="alert alert-warning">
+                <i class="fas fa-exclamation-triangle"></i>
+                <strong>Atenção!</strong> Ao resetar o NSU, a próxima consulta buscará TODOS os documentos desde o início.
+                Isso pode levar mais tempo e retornar documentos já importados.
+            </div>
+
+            <p>Você tem certeza que deseja resetar o NSU do certificado:</p>
+            <ul>
+                <li><strong>Filial:</strong> {{ certificado.filial.nome }}</li>
+                <li><strong>CNPJ:</strong> {{ certificado.cnpj_formatado }}</li>
+                <li><strong>NSU Atual:</strong> {{ certificado.ultimo_nsu }}</li>
+            </ul>
+
+            <p class="text-muted small">
+                <i class="fas fa-info-circle"></i>
+                O NSU será resetado para <code>000000000000000</code>, permitindo buscar todos os documentos disponíveis novamente.
+            </p>
+
+            <form method="post">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-warning">
+                    <i class="fas fa-redo"></i> Sim, Resetar NSU
+                </button>
+                <a href="{% url 'certificados_lista' %}" class="btn btn-secondary">
+                    <i class="fas fa-times"></i> Cancelar
+                </a>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
