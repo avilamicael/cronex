@@ -202,6 +202,14 @@ def importar_contas_arquivo(request):
 @grupos_necessarios("Administrador", "Financeiro")
 @login_required
 def concilia_contas_view(request):
+    empresa = request.user.empresa
+    
+    # Buscar dados para o formulário do modal (sempre disponível)
+    filiais = Filial.objects.filter(empresa=empresa)
+    transacoes = Transacao.objects.filter(empresa=empresa)
+    fornecedores = Fornecedor.objects.filter(empresa=empresa)
+    tipos_pagamento = TipoPagamento.objects.filter(empresa=empresa)
+    
     if request.method == 'POST':
         form = ConciliacaoForm(request.POST, request.FILES)
         if form.is_valid():
@@ -213,6 +221,8 @@ def concilia_contas_view(request):
             mes = contas_banco[0]['data'].month
             ano = contas_banco[0]['data'].year
 
+            # Busca contas que foram pagas pela conta bancária selecionada
+            # Fallback: se conta_bancaria_pagamento for null, usa a filial (dados antigos)
             contas_sistema = ContaPagar.objects.filter(
                 Q(conta_bancaria_pagamento=filial) | 
                 Q(conta_bancaria_pagamento__isnull=True, filial=filial),
@@ -247,33 +257,78 @@ def concilia_contas_view(request):
             return render(request, 'financeiro/concilia_resultado.html', {
                 'contas_banco': contas_banco,
                 'contas_nao_conciliadas': contas_nao_conciliadas,
-                'filial': filial
+                'filial': filial,
+                'filiais': filiais,
+                'transacoes': transacoes,
+                'fornecedores': fornecedores,
+                'tipos_pagamento': tipos_pagamento,
             })
 
     else:
         form = ConciliacaoForm()
 
-    return render(request, 'financeiro/concilia_form.html', {'form': form})
+    return render(request, 'financeiro/concilia_form.html', {
+        'form': form,
+    })
 
 @require_POST
 @login_required
 @grupos_necessarios("Administrador", "Financeiro")
 def incluir_conta_conciliacao(request):
-    descricao = request.POST.get("descricao")
-    valor = request.POST.get("valor").replace(',', '.')
-    data_pagamento = request.POST.get("data_pagamento")
-    filial_id = request.POST.get("filial_id")
-
-    ContaPagar.objects.create(
-        descricao=descricao,
-        valor_bruto=Decimal(valor),
-        data_pagamento=data_pagamento,
-        status="pago",
-        filial=Filial.objects.get(id=filial_id)
-    )
-
-    messages.success(request, "Conta adicionada com sucesso!")
-    return redirect("concilia_contas")  # Redireciona de volta à página de conciliação
+    """
+    Cria uma nova conta a pagar a partir dos dados do extrato bancário
+    """
+    try:
+        empresa = request.user.empresa
+        
+        # Dados obrigatórios
+        filial_id = request.POST.get("filial_id")
+        transacao_id = request.POST.get("transacao_id")
+        tipo_pagamento_id = request.POST.get("tipo_pagamento_id")
+        documento = request.POST.get("documento")
+        data_movimentacao = request.POST.get("data_movimentacao")
+        data_vencimento = request.POST.get("data_vencimento")
+        data_pagamento = request.POST.get("data_pagamento")
+        valor = request.POST.get("valor").replace(',', '.')
+        
+        # Dados opcionais
+        fornecedor_id = request.POST.get("fornecedor_id")
+        conta_bancaria_pagamento_id = request.POST.get("conta_bancaria_pagamento_id")
+        descricao = request.POST.get("descricao", "")
+        numero_notas = request.POST.get("numero_notas", "")
+        
+        # Validações básicas
+        if not all([filial_id, transacao_id, tipo_pagamento_id, documento, 
+                    data_movimentacao, data_vencimento, data_pagamento, valor]):
+            messages.error(request, "Todos os campos obrigatórios devem ser preenchidos!")
+            return redirect("concilia_contas")
+        
+        # Criar a conta
+        conta = ContaPagar.objects.create(
+            empresa=empresa,
+            filial=Filial.objects.get(id=filial_id, empresa=empresa),
+            transacao=Transacao.objects.get(id=transacao_id, empresa=empresa),
+            tipo_pagamento=TipoPagamento.objects.get(id=tipo_pagamento_id, empresa=empresa),
+            fornecedor=Fornecedor.objects.get(id=fornecedor_id, empresa=empresa) if fornecedor_id else None,
+            conta_bancaria_pagamento=Filial.objects.get(id=conta_bancaria_pagamento_id, empresa=empresa) if conta_bancaria_pagamento_id else None,
+            documento=documento,
+            descricao=descricao,
+            numero_notas=numero_notas,
+            data_movimentacao=data_movimentacao,
+            data_vencimento=data_vencimento,
+            data_pagamento=data_pagamento,
+            valor_bruto=Decimal(valor),
+            valor_pago=Decimal(valor),
+            status="pago",
+            criado_por=request.user
+        )
+        
+        messages.success(request, f"Conta '{documento}' adicionada e conciliada com sucesso!")
+        
+    except Exception as e:
+        messages.error(request, f"Erro ao criar conta: {str(e)}")
+    
+    return redirect("concilia_contas")
 
 @login_required
 @grupos_necessarios("Administrador", "Financeiro", "Gestor")

@@ -2,7 +2,7 @@
 {% block title %}Resultado da Conciliação{% endblock %}
 {% block content %}
 
-<h2 class="mb-4"><i class="fas fa-exchange-alt mr-2"></i> Resultado da Conciliação</h2>
+<h2 class="mb-4"><i class="fas fa-exchange-alt mr-2"></i> Resultado da Conciliação - {{ filial.nome }}</h2>
 
 <!-- Contas conciliadas -->
 <div class="mb-5">
@@ -49,16 +49,15 @@
           <td>{{ conta.descricao }}</td>
           <td>R$ {{ conta.valor|floatformat:2 }}</td>
           <td>
-            <form method="post" action="#">
-              {% csrf_token %}
-              <input type="hidden" name="descricao" value="{{ conta.descricao }}">
-              <input type="hidden" name="valor" value="{{ conta.valor }}">
-              <input type="hidden" name="data_pagamento" value="{{ conta.data|date:'Y-m-d' }}">
-              <input type="hidden" name="filial_id" value="{{ filial.id }}">
-              <button class="btn btn-sm btn-outline-primary" type="submit">
-                <i class="fas fa-plus-circle"></i> Incluir
-              </button>
-            </form>
+            <button 
+              class="btn btn-sm btn-outline-primary btn-incluir-conta"
+              data-descricao="{{ conta.descricao }}"
+              data-valor="{{ conta.valor }}"
+              data-data="{{ conta.data|date:'Y-m-d' }}"
+              data-toggle="modal"
+              data-target="#modalIncluirConta">
+              <i class="fas fa-plus-circle"></i> Incluir
+            </button>
           </td>
         </tr>
         {% endif %}
@@ -97,5 +96,182 @@
 </div>
 
 <a href="{% url 'concilia_contas' %}" class="btn btn-secondary"><i class="fas fa-arrow-left"></i> Nova Conciliação</a>
+
+<!-- Modal para Incluir Conta -->
+<div class="modal fade" id="modalIncluirConta" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <form method="POST" action="{% url 'incluir_conta_conciliacao' %}">
+                {% csrf_token %}
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title">Incluir Conta do Extrato Bancário</h5>
+                    <button type="button" class="close text-white" data-dismiss="modal">
+                        <span>&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-info">
+                        <strong><i class="fas fa-info-circle"></i> Dados do Extrato:</strong>
+                        <div id="dados-extrato" class="mt-2"></div>
+                    </div>
+
+                    <div class="row">
+                        <!-- Campos Obrigatórios -->
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label>Filial (Responsável) <span class="text-danger">*</span></label>
+                                <select name="filial_id" class="form-control" required>
+                                    <option value="">Selecione...</option>
+                                    {% for f in filiais %}
+                                    <option value="{{ f.id }}" {% if f.id == filial.id %}selected{% endif %}>
+                                        {{ f.nome }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label>Conta Bancária (Pagamento) <span class="text-danger">*</span></label>
+                                <select name="conta_bancaria_pagamento_id" class="form-control" required>
+                                    <option value="">Selecione...</option>
+                                    {% for f in filiais %}
+                                    <option value="{{ f.id }}" {% if f.id == filial.id %}selected{% endif %}>
+                                        {{ f.nome }}{% if f.conta_bancaria %} - {{ f.conta_bancaria }}{% endif %}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                                <small class="form-text text-muted">Banco que realizou o pagamento</small>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label>Transação <span class="text-danger">*</span></label>
+                                <select name="transacao_id" class="form-control" required>
+                                    <option value="">Selecione...</option>
+                                    {% for t in transacoes %}
+                                    <option value="{{ t.id }}">{{ t.nome }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label>Tipo de Pagamento <span class="text-danger">*</span></label>
+                                <select name="tipo_pagamento_id" class="form-control" required>
+                                    <option value="">Selecione...</option>
+                                    {% for tp in tipos_pagamento %}
+                                    <option value="{{ tp.id }}">{{ tp.nome }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label>Fornecedor</label>
+                                <select name="fornecedor_id" class="form-control">
+                                    <option value="">Nenhum</option>
+                                    {% for f in fornecedores %}
+                                    <option value="{{ f.id }}">{{ f.nome }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label>Documento <span class="text-danger">*</span></label>
+                                <input type="text" name="documento" id="input-documento" class="form-control" required>
+                            </div>
+                        </div>
+
+                        <div class="col-md-4">
+                            <div class="form-group">
+                                <label>Data Movimentação <span class="text-danger">*</span></label>
+                                <input type="date" name="data_movimentacao" id="input-data-mov" class="form-control" required>
+                            </div>
+                        </div>
+
+                        <div class="col-md-4">
+                            <div class="form-group">
+                                <label>Data Vencimento <span class="text-danger">*</span></label>
+                                <input type="date" name="data_vencimento" id="input-data-venc" class="form-control" required>
+                            </div>
+                        </div>
+
+                        <div class="col-md-4">
+                            <div class="form-group">
+                                <label>Data Pagamento <span class="text-danger">*</span></label>
+                                <input type="date" name="data_pagamento" id="input-data-pgt" class="form-control" required>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label>Valor <span class="text-danger">*</span></label>
+                                <input type="text" name="valor" id="input-valor" class="form-control" required>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label>Número de Notas</label>
+                                <input type="text" name="numero_notas" class="form-control" placeholder="Ex: 12345, 12346">
+                            </div>
+                        </div>
+
+                        <div class="col-md-12">
+                            <div class="form-group">
+                                <label>Descrição</label>
+                                <textarea name="descricao" id="input-descricao" class="form-control" rows="3"></textarea>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">
+                        <i class="fas fa-times"></i> Cancelar
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save"></i> Salvar e Conciliar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Quando clicar no botão "Incluir"
+    document.querySelectorAll('.btn-incluir-conta').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const descricao = this.getAttribute('data-descricao');
+            const valor = this.getAttribute('data-valor');
+            const data = this.getAttribute('data-data');
+            
+            // Preencher campos do modal
+            document.getElementById('input-descricao').value = descricao;
+            document.getElementById('input-valor').value = valor;
+            document.getElementById('input-data-pgt').value = data;
+            document.getElementById('input-data-venc').value = data;
+            document.getElementById('input-data-mov').value = data;
+            document.getElementById('input-documento').value = 'CONCILIAÇÃO-' + data;
+            
+            // Mostrar resumo
+            const dataFormatada = new Date(data + 'T00:00:00').toLocaleDateString('pt-BR');
+            document.getElementById('dados-extrato').innerHTML = `
+                <div><strong>Descrição:</strong> ${descricao}</div>
+                <div><strong>Valor:</strong> R$ ${parseFloat(valor).toFixed(2).replace('.', ',')}</div>
+                <div><strong>Data:</strong> ${dataFormatada}</div>
+            `;
+        });
+    });
+});
+</script>
 
 {% endblock %}

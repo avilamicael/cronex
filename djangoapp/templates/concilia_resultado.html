@@ -1,0 +1,450 @@
+# ========================================
+# VIEWS.PY
+# ========================================
+
+from django.db.models import Q
+from django.contrib import messages
+from django.shortcuts import render, redirect
+from django.contrib.auth.decorators import login_required
+from django.views.decorators.http import require_POST
+from decimal import Decimal
+import os
+
+@grupos_necessarios("Administrador", "Financeiro")
+@login_required
+def importar_contas_arquivo(request):
+    empresa = request.user.empresa
+
+    if request.method == 'POST' and request.FILES.getlist('arquivo'):
+        arquivos = request.FILES.getlist('arquivo')
+        for arquivo in arquivos:
+            ext = os.path.splitext(arquivo.name)[1].lower()
+            if ext == '.csv':
+                _importar_csv(arquivo, request, empresa)
+            elif ext == '.xml':
+                _importar_xml(arquivo, request, empresa)
+            else:
+                messages.error(request, f"Formato não suportado: {arquivo.name}")
+    return redirect('lancar_conta_pagar')
+
+
+@grupos_necessarios("Administrador", "Financeiro")
+@login_required
+def concilia_contas_view(request):
+    empresa = request.user.empresa
+    
+    if request.method == 'POST':
+        form = ConciliacaoForm(request.POST, request.FILES)
+        if form.is_valid():
+            filial = form.cleaned_data['filial']
+            arquivo = form.cleaned_data['arquivo']
+
+            contas_banco = processar_ofx(arquivo)
+
+            mes = contas_banco[0]['data'].month
+            ano = contas_banco[0]['data'].year
+
+            # Busca contas que foram pagas pela conta bancária selecionada
+            # Fallback: se conta_bancaria_pagamento for null, usa a filial (dados antigos)
+            contas_sistema = ContaPagar.objects.filter(
+                Q(conta_bancaria_pagamento=filial) | 
+                Q(conta_bancaria_pagamento__isnull=True, filial=filial),
+                status='pago',
+                data_pagamento__month=mes,
+                data_pagamento__year=ano
+            )
+
+            contas_usadas = set()
+
+            for item in contas_banco:
+                item['conciliado'] = False
+                item_valor = Decimal(item['valor'])
+                item_data = item['data'].date() if hasattr(item['data'], 'date') else item['data']
+
+                for conta in contas_sistema:
+                    valor_pgto = conta.valor_pago if conta.valor_pago is not None else conta.valor_bruto
+                    conta_valor = Decimal(valor_pgto)
+                    conta_data = conta.data_pagamento
+
+                    if (
+                        abs(conta_valor - item_valor) < Decimal('0.01') and
+                        conta_data == item_data and
+                        conta.id not in contas_usadas
+                    ):
+                        item['conciliado'] = True
+                        contas_usadas.add(conta.id)
+                        break
+
+            contas_nao_conciliadas = contas_sistema.exclude(id__in=contas_usadas)
+
+            # Buscar dados para o formulário do modal
+            filiais = Filial.objects.filter(empresa=empresa)
+            transacoes = Transacao.objects.filter(empresa=empresa)
+            fornecedores = Fornecedor.objects.filter(empresa=empresa)
+            tipos_pagamento = TipoPagamento.objects.filter(empresa=empresa)
+
+            return render(request, 'financeiro/concilia_resultado.html', {
+                'contas_banco': contas_banco,
+                'contas_nao_conciliadas': contas_nao_conciliadas,
+                'filial': filial,
+                'filiais': filiais,
+                'transacoes': transacoes,
+                'fornecedores': fornecedores,
+                'tipos_pagamento': tipos_pagamento,
+            })
+
+    else:
+        form = ConciliacaoForm()
+
+    return render(request, 'financeiro/concilia_form.html', {'form': form})
+
+
+@require_POST
+@login_required
+@grupos_necessarios("Administrador", "Financeiro")
+def incluir_conta_conciliacao(request):
+    """
+    Cria uma nova conta a pagar a partir dos dados do extrato bancário
+    """
+    try:
+        empresa = request.user.empresa
+        
+        # Dados obrigatórios
+        filial_id = request.POST.get("filial_id")
+        transacao_id = request.POST.get("transacao_id")
+        tipo_pagamento_id = request.POST.get("tipo_pagamento_id")
+        documento = request.POST.get("documento")
+        data_movimentacao = request.POST.get("data_movimentacao")
+        data_vencimento = request.POST.get("data_vencimento")
+        data_pagamento = request.POST.get("data_pagamento")
+        valor = request.POST.get("valor").replace(',', '.')
+        
+        # Dados opcionais
+        fornecedor_id = request.POST.get("fornecedor_id")
+        conta_bancaria_pagamento_id = request.POST.get("conta_bancaria_pagamento_id")
+        descricao = request.POST.get("descricao", "")
+        numero_notas = request.POST.get("numero_notas", "")
+        
+        # Validações básicas
+        if not all([filial_id, transacao_id, tipo_pagamento_id, documento, 
+                    data_movimentacao, data_vencimento, data_pagamento, valor]):
+            messages.error(request, "Todos os campos obrigatórios devem ser preenchidos!")
+            return redirect("concilia_contas")
+        
+        # Criar a conta
+        conta = ContaPagar.objects.create(
+            empresa=empresa,
+            filial=Filial.objects.get(id=filial_id, empresa=empresa),
+            transacao=Transacao.objects.get(id=transacao_id, empresa=empresa),
+            tipo_pagamento=TipoPagamento.objects.get(id=tipo_pagamento_id, empresa=empresa),
+            fornecedor=Fornecedor.objects.get(id=fornecedor_id, empresa=empresa) if fornecedor_id else None,
+            conta_bancaria_pagamento=Filial.objects.get(id=conta_bancaria_pagamento_id, empresa=empresa) if conta_bancaria_pagamento_id else None,
+            documento=documento,
+            descricao=descricao,
+            numero_notas=numero_notas,
+            data_movimentacao=data_movimentacao,
+            data_vencimento=data_vencimento,
+            data_pagamento=data_pagamento,
+            valor_bruto=Decimal(valor),
+            valor_pago=Decimal(valor),
+            status="pago",
+            criado_por=request.user
+        )
+        
+        messages.success(request, f"Conta '{documento}' adicionada e conciliada com sucesso!")
+        
+    except Exception as e:
+        messages.error(request, f"Erro ao criar conta: {str(e)}")
+    
+    return redirect("concilia_contas")
+
+
+# ========================================
+# TEMPLATE: concilia_resultado.html
+# ========================================
+"""
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Resultado da Conciliação{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <h2>Resultado da Conciliação - {{ filial.nome }}</h2>
+    
+    <div class="row mt-4">
+        <!-- Contas do Banco -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5>Extrato Bancário ({{ contas_banco|length }} lançamentos)</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Data</th>
+                                    <th>Descrição</th>
+                                    <th>Valor</th>
+                                    <th>Status</th>
+                                    <th>Ação</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for conta in contas_banco %}
+                                <tr class="{% if conta.conciliado %}table-success{% else %}table-warning{% endif %}">
+                                    <td>{{ conta.data|date:"d/m/Y" }}</td>
+                                    <td>{{ conta.descricao|truncatewords:5 }}</td>
+                                    <td>R$ {{ conta.valor|floatformat:2 }}</td>
+                                    <td>
+                                        {% if conta.conciliado %}
+                                            <span class="badge bg-success">✓ Conciliado</span>
+                                        {% else %}
+                                            <span class="badge bg-warning">⚠ Não encontrado</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if not conta.conciliado %}
+                                            <button 
+                                                class="btn btn-sm btn-primary btn-incluir-conta"
+                                                data-descricao="{{ conta.descricao }}"
+                                                data-valor="{{ conta.valor }}"
+                                                data-data="{{ conta.data|date:'Y-m-d' }}"
+                                                data-toggle="modal"
+                                                data-target="#modalIncluirConta">
+                                                <i class="fas fa-plus"></i> Incluir
+                                            </button>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Contas Não Conciliadas do Sistema -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-danger text-white">
+                    <h5>Contas Pagas no Sistema - Não Encontradas no Banco ({{ contas_nao_conciliadas|length }})</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Data Pgto</th>
+                                    <th>Documento</th>
+                                    <th>Transação</th>
+                                    <th>Valor Pago</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for conta in contas_nao_conciliadas %}
+                                <tr>
+                                    <td>{{ conta.data_pagamento|date:"d/m/Y" }}</td>
+                                    <td>{{ conta.documento }}</td>
+                                    <td>{{ conta.transacao.nome }}</td>
+                                    <td>R$ {{ conta.valor_pago|floatformat:2 }}</td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="4" class="text-center text-success">
+                                        ✓ Todas as contas do sistema estão conciliadas!
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="mt-3">
+        <a href="{% url 'concilia_contas' %}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left"></i> Nova Conciliação
+        </a>
+    </div>
+</div>
+
+<!-- Modal para Incluir Conta -->
+<div class="modal fade" id="modalIncluirConta" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <form method="POST" action="{% url 'incluir_conta_conciliacao' %}">
+                {% csrf_token %}
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title">Incluir Conta do Extrato Bancário</h5>
+                    <button type="button" class="close text-white" data-dismiss="modal">
+                        <span>&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-info">
+                        <strong>Dados do Extrato:</strong>
+                        <div id="dados-extrato"></div>
+                    </div>
+
+                    <div class="row">
+                        <!-- Campos Obrigatórios -->
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label>Filial (Responsável) <span class="text-danger">*</span></label>
+                                <select name="filial_id" class="form-control" required>
+                                    <option value="">Selecione...</option>
+                                    {% for f in filiais %}
+                                    <option value="{{ f.id }}" {% if f.id == filial.id %}selected{% endif %}>
+                                        {{ f.nome }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label>Conta Bancária (Pagamento) <span class="text-danger">*</span></label>
+                                <select name="conta_bancaria_pagamento_id" class="form-control" required>
+                                    <option value="">Selecione...</option>
+                                    {% for f in filiais %}
+                                    <option value="{{ f.id }}" {% if f.id == filial.id %}selected{% endif %}>
+                                        {{ f.nome }} - {{ f.conta_bancaria }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                                <small class="form-text text-muted">Banco que realizou o pagamento</small>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label>Transação <span class="text-danger">*</span></label>
+                                <select name="transacao_id" class="form-control" required>
+                                    <option value="">Selecione...</option>
+                                    {% for t in transacoes %}
+                                    <option value="{{ t.id }}">{{ t.nome }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label>Tipo de Pagamento <span class="text-danger">*</span></label>
+                                <select name="tipo_pagamento_id" class="form-control" required>
+                                    <option value="">Selecione...</option>
+                                    {% for tp in tipos_pagamento %}
+                                    <option value="{{ tp.id }}">{{ tp.nome }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label>Fornecedor</label>
+                                <select name="fornecedor_id" class="form-control">
+                                    <option value="">Nenhum</option>
+                                    {% for f in fornecedores %}
+                                    <option value="{{ f.id }}">{{ f.nome }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label>Documento <span class="text-danger">*</span></label>
+                                <input type="text" name="documento" id="input-documento" class="form-control" required>
+                            </div>
+                        </div>
+
+                        <div class="col-md-4">
+                            <div class="form-group">
+                                <label>Data Movimentação <span class="text-danger">*</span></label>
+                                <input type="date" name="data_movimentacao" id="input-data-mov" class="form-control" required>
+                            </div>
+                        </div>
+
+                        <div class="col-md-4">
+                            <div class="form-group">
+                                <label>Data Vencimento <span class="text-danger">*</span></label>
+                                <input type="date" name="data_vencimento" id="input-data-venc" class="form-control" required>
+                            </div>
+                        </div>
+
+                        <div class="col-md-4">
+                            <div class="form-group">
+                                <label>Data Pagamento <span class="text-danger">*</span></label>
+                                <input type="date" name="data_pagamento" id="input-data-pgt" class="form-control" required>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label>Valor <span class="text-danger">*</span></label>
+                                <input type="text" name="valor" id="input-valor" class="form-control" required>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label>Número de Notas</label>
+                                <input type="text" name="numero_notas" class="form-control" placeholder="Ex: 12345, 12346">
+                            </div>
+                        </div>
+
+                        <div class="col-md-12">
+                            <div class="form-group">
+                                <label>Descrição</label>
+                                <textarea name="descricao" id="input-descricao" class="form-control" rows="3"></textarea>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save"></i> Salvar e Conciliar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Quando clicar no botão "Incluir"
+    document.querySelectorAll('.btn-incluir-conta').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const descricao = this.getAttribute('data-descricao');
+            const valor = this.getAttribute('data-valor');
+            const data = this.getAttribute('data-data');
+            
+            // Preencher campos do modal
+            document.getElementById('input-descricao').value = descricao;
+            document.getElementById('input-valor').value = valor;
+            document.getElementById('input-data-pgt').value = data;
+            document.getElementById('input-data-venc').value = data;
+            document.getElementById('input-data-mov').value = data;
+            document.getElementById('input-documento').value = 'CONCILIAÇÃO-' + data;
+            
+            // Mostrar resumo
+            document.getElementById('dados-extrato').innerHTML = `
+                <div><strong>Descrição:</strong> ${descricao}</div>
+                <div><strong>Valor:</strong> R$ ${parseFloat(valor).toFixed(2)}</div>
+                <div><strong>Data:</strong> ${new Date(data).toLocaleDateString('pt-BR')}</div>
+            `;
+        });
+    });
+});
+</script>
+
+{% endblock %}
