@@ -253,12 +253,36 @@ def _importar_xml(arquivo, request, empresa):
         # Dados do fornecedor (emitente)
         cnpj_emit = emit.find('ns:CNPJ', ns).text
         nome_emit = emit.find('ns:xNome', ns).text
-        fornecedor, _ = Fornecedor.objects.get_or_create(cnpj=cnpj_emit, empresa=empresa, defaults={'nome': nome_emit})
+
+        # Buscar fornecedor por CNPJ
+        fornecedor = Fornecedor.objects.filter(empresa=empresa, cnpj=cnpj_emit).first()
+        if not fornecedor:
+            # Verifica se já existe fornecedor com mesmo nome (evita duplicação)
+            fornecedor = Fornecedor.objects.filter(empresa=empresa, nome__iexact=nome_emit).first()
+            if not fornecedor:
+                # Só cria se não existir nem por CNPJ nem por nome
+                fornecedor = Fornecedor.objects.create(
+                    empresa=empresa,
+                    cnpj=cnpj_emit,
+                    nome=nome_emit
+                )
 
         # Dados da filial (destinatário)
         cnpj_dest = dest.find('ns:CNPJ', ns).text
         nome_dest = dest.find('ns:xNome', ns).text
-        filial, _ = Filial.objects.get_or_create(cnpj=cnpj_dest, empresa=empresa, defaults={'nome': nome_dest})
+
+        # Buscar filial por CNPJ
+        filial = Filial.objects.filter(empresa=empresa, cnpj=cnpj_dest).first()
+        if not filial:
+            # Verifica se já existe filial com mesmo nome (evita duplicação)
+            filial = Filial.objects.filter(empresa=empresa, nome__iexact=nome_dest).first()
+            if not filial:
+                # Só cria se não existir nem por CNPJ nem por nome
+                filial = Filial.objects.create(
+                    empresa=empresa,
+                    cnpj=cnpj_dest,
+                    nome=nome_dest
+                )
 
         # Documento e descrição
         numero_nf = ide.find('ns:nNF', ns).text
